@@ -196,11 +196,12 @@ function useDashboardData() {
       return;
     }
 
+    const caseId = selectedCaseId;
     let cancelled = false;
 
     async function refreshBundle() {
       try {
-        await loadCaseBundle(selectedCaseId);
+        await loadCaseBundle(caseId);
         if (!cancelled) {
           setError(null);
         }
