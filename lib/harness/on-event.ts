@@ -1,57 +1,272 @@
+import { buildContext } from "@/lib/harness/context-builder";
+import { policyCheck } from "@/lib/harness/policy";
+import { runAgent } from "@/lib/harness/agent";
+import { getNextState, STEP_LABELS } from "@/lib/harness/transitions";
 import { store } from "@/lib/store";
-import type { ActionType, AppEvent, BookingCase, BookingState } from "@/lib/types";
+import type {
+  ActionType,
+  AgentDecision,
+  AppEvent,
+  BookingCase,
+  BookingState,
+  IntentDecision,
+} from "@/lib/types";
 
-const STEP_LABELS: Record<BookingState, string> = {
-  new_lead: "New inquiry",
-  intake_pending: "Awaiting intake",
-  fit_review: "Ready for your review",
-  fit_confirmed: "Finding a time",
-  awaiting_client_confirmation: "Waiting on client",
-  booked: "Booked ✓",
-  cancel_requested: "Cancellation requested",
-  cancelled: "Cancelled",
-  reschedule_requested: "Reschedule requested",
-  reschedule_in_progress: "Finding new time",
-  completed: "Completed ✓",
-};
+const MAX_ITERATIONS = 5;
 
 function isoNow() {
   return new Date().toISOString();
 }
 
-function applyStateChange(bookingCase: BookingCase, nextState: BookingState, content: string, timestamp: string) {
-  store.updateCase(bookingCase.id, {
+function refreshCase(caseId: string) {
+  const bookingCase = store.getCase(caseId);
+  if (!bookingCase) {
+    throw new Error(`Unknown case: ${caseId}`);
+  }
+  return bookingCase;
+}
+
+function updateCaseState(caseId: string, nextState: BookingState, timestamp: string) {
+  const previous = refreshCase(caseId);
+  store.updateCase(caseId, {
     state: nextState,
     current_step: STEP_LABELS[nextState],
     updated_at: timestamp,
   });
-
   store.addTimelineEntry({
-    case_id: bookingCase.id,
+    case_id: caseId,
     type: "state_change",
-    content,
-    metadata: { from_state: bookingCase.state, to_state: nextState },
+    content: `Case moved to: ${STEP_LABELS[nextState]}`,
+    metadata: { from_state: previous.state, to_state: nextState },
     timestamp,
   });
 }
 
-function logAction(caseId: string, content: string, action: ActionType, automation: "auto" | "draft" | "manual", timestamp: string) {
+function logAction(caseId: string, action: ActionType, content: string, level: "auto" | "draft" | "manual", timestamp: string) {
   store.addTimelineEntry({
     case_id: caseId,
     type: "action",
     content,
-    metadata: { action, automation_level: automation },
+    metadata: { action, automation_level: level },
     timestamp,
   });
 }
 
-export async function onEvent(event: AppEvent) {
-  const timestamp = isoNow();
-  const bookingCase = store.getCase(event.case_id);
+function logEvent(caseId: string, content: string, timestamp: string) {
+  store.addTimelineEntry({
+    case_id: caseId,
+    type: "event",
+    content,
+    timestamp,
+  });
+}
 
-  if (!bookingCase) {
-    throw new Error(`Unknown case: ${event.case_id}`);
+function createDraft(caseId: string, action: ActionType, timestamp: string) {
+  const draft = store.addDraft({
+    case_id: caseId,
+    action,
+    status: "pending",
+    channel: "email",
+    subject:
+      action === "approve_fit"
+        ? "Next steps for your session"
+        : action === "confirm_booking"
+          ? "Your session is confirmed"
+          : `Draft for ${action}`,
+    body:
+      action === "approve_fit"
+        ? "Hi, thanks for sharing more about what you're looking for. I think this could be a great fit."
+        : action === "confirm_booking"
+          ? "You're all set — looking forward to it."
+          : `Generated draft for ${action}.`,
+  });
+  store.updateCase(caseId, {
+    paused_reason: "Waiting for your approval before the system can proceed",
+    updated_at: timestamp,
+  });
+  store.addTimelineEntry({
+    case_id: caseId,
+    type: "draft",
+    content: "Draft ready — waiting for your approval",
+    metadata: { automation_level: "draft", action },
+    timestamp,
+  });
+  return draft;
+}
+
+function executeTool(action: ActionType, bookingCase: BookingCase, timestamp: string) {
+  switch (action) {
+    case "send_intake_email": {
+      store.logEmail({
+        case_id: bookingCase.id,
+        to: bookingCase.client_email,
+        subject: "Tell us more",
+        body: "Thanks for reaching out. A few quick questions will help me understand what you need.",
+        sent_at: timestamp,
+        source_action: action,
+      });
+      logAction(bookingCase.id, action, "System sent intake email", "auto", timestamp);
+      return { status: "sent" };
+    }
+
+    case "propose_time_slots": {
+      store.logEmail({
+        case_id: bookingCase.id,
+        to: bookingCase.client_email,
+        subject: "Available time slots",
+        body: "Here are a few times that could work for your session.",
+        sent_at: timestamp,
+        source_action: action,
+      });
+      logAction(bookingCase.id, action, "System sent available time slots", "auto", timestamp);
+      return { status: "sent" };
+    }
+
+    case "schedule_reminder": {
+      logAction(bookingCase.id, action, "Reminder scheduled for upcoming session", "auto", timestamp);
+      return { scheduled: true };
+    }
+
+    case "escalate_to_owner": {
+      store.updateCase(bookingCase.id, {
+        paused_reason: "Escalated to you — the system has stepped back",
+        updated_at: timestamp,
+      });
+      store.addTimelineEntry({
+        case_id: bookingCase.id,
+        type: "system_note",
+        content: "System escalated to you — no draft generated",
+        metadata: { automation_level: "manual" },
+        timestamp,
+      });
+      return { escalated: true };
+    }
+
+    default:
+      return { ok: true };
   }
+}
+
+function validateEventForState(event: AppEvent, bookingCase: BookingCase) {
+  if (event.type === "booking_inquiry_submitted" && bookingCase.state !== "new_lead") {
+    throw new Error(`Event ${event.type} is invalid for state ${bookingCase.state}`);
+  }
+
+  if (event.type === "fit_review_completed" && bookingCase.state !== "fit_review") {
+    throw new Error(`Event ${event.type} is invalid for state ${bookingCase.state}`);
+  }
+
+  if (event.type === "slot_selection_received" && bookingCase.state !== "awaiting_client_confirmation") {
+    throw new Error(`Event ${event.type} is invalid for state ${bookingCase.state}`);
+  }
+
+  if (event.type === "cancel_request_received" && bookingCase.state !== "booked") {
+    throw new Error(`Event ${event.type} is invalid for state ${bookingCase.state}`);
+  }
+
+  if (event.type === "reschedule_request_received" && bookingCase.state !== "booked") {
+    throw new Error(`Event ${event.type} is invalid for state ${bookingCase.state}`);
+  }
+
+  if (event.type === "reschedule_slot_selection_received" && bookingCase.state !== "reschedule_in_progress") {
+    throw new Error(`Event ${event.type} is invalid for state ${bookingCase.state}`);
+  }
+}
+
+function needsIntentClassification(bookingCase: BookingCase, event: AppEvent) {
+  return bookingCase.state === "cancel_requested" && event.type === "client_message_received";
+}
+
+function handleIntentClassification(intentDecision: IntentDecision, bookingCase: BookingCase, timestamp: string) {
+  if (intentDecision.intent === "confirm_cancel") {
+    updateCaseState(bookingCase.id, "cancelled", timestamp);
+    logAction(bookingCase.id, "confirm_cancellation", "Cancellation confirmed manually", "manual", timestamp);
+    return { accepted: true, case_id: bookingCase.id, state: "cancelled" as BookingState };
+  }
+
+  if (intentDecision.intent === "reschedule") {
+    updateCaseState(bookingCase.id, "reschedule_requested", timestamp);
+    return { accepted: true, case_id: bookingCase.id, state: "reschedule_requested" as BookingState };
+  }
+
+  createDraft(bookingCase.id, "request_more_info", timestamp);
+  return { accepted: true, case_id: bookingCase.id, state: bookingCase.state };
+}
+
+function resumeApprovedDraft(bookingCase: BookingCase, event: AppEvent, timestamp: string) {
+  const approvedAction = event.payload.approved_draft_action as ActionType | undefined;
+  if (!approvedAction) {
+    return refreshCase(bookingCase.id);
+  }
+
+  logAction(
+    bookingCase.id,
+    approvedAction,
+    approvedAction === "approve_fit"
+      ? "Draft approved — fit confirmation email sent"
+      : approvedAction === "confirm_booking"
+        ? "Draft approved — booking confirmation email sent"
+        : `Draft approved — ${approvedAction} sent`,
+    "draft",
+    timestamp,
+  );
+
+  store.updateCase(bookingCase.id, {
+    paused_reason: null,
+    updated_at: timestamp,
+  });
+
+  const nextState = getNextState(bookingCase.state, approvedAction);
+  if (nextState) {
+    updateCaseState(bookingCase.id, nextState, timestamp);
+  }
+
+  return refreshCase(bookingCase.id);
+}
+
+function shouldContinueAfterApprovedDraft(action: ActionType | undefined) {
+  return action === "approve_fit" || action === "offer_reschedule";
+}
+
+function preprocessEvent(event: AppEvent, bookingCase: BookingCase, timestamp: string) {
+  if (event.type === "cancel_request_received") {
+    logEvent(bookingCase.id, `${bookingCase.client_name ?? "Client"} requested cancellation`, timestamp);
+    updateCaseState(bookingCase.id, "cancel_requested", timestamp);
+    return refreshCase(bookingCase.id);
+  }
+
+  if (event.type === "reschedule_request_received") {
+    logEvent(bookingCase.id, `${bookingCase.client_name ?? "Client"} requested to reschedule`, timestamp);
+    updateCaseState(bookingCase.id, "reschedule_requested", timestamp);
+    return refreshCase(bookingCase.id);
+  }
+
+  if (event.type === "reschedule_slot_selection_received" && event.payload.selection_type === "confirmed") {
+    logEvent(bookingCase.id, `${bookingCase.client_name ?? "Client"} selected ${String(event.payload.selected_slot ?? "a new time slot")}`, timestamp);
+  }
+
+  return bookingCase;
+}
+
+export async function onEvent(event: AppEvent) {
+  let bookingCase = refreshCase(event.case_id);
+  validateEventForState(event, bookingCase);
+
+  const timestamp = isoNow();
+
+  if (event.type === "fit_review_completed" && event.payload.outcome === "rejected") {
+    executeTool("escalate_to_owner", bookingCase, timestamp);
+    return { accepted: true, case_id: bookingCase.id, state: bookingCase.state };
+  }
+
+  if (event.payload.approved_draft_action) {
+    bookingCase = resumeApprovedDraft(bookingCase, event, timestamp);
+    if (!shouldContinueAfterApprovedDraft(event.payload.approved_draft_action as ActionType | undefined)) {
+      return { accepted: true, case_id: bookingCase.id, state: bookingCase.state };
+    }
+  }
+
+  bookingCase = preprocessEvent(event, bookingCase, timestamp);
 
   store.addInteraction({
     case_id: bookingCase.id,
@@ -61,162 +276,47 @@ export async function onEvent(event: AppEvent) {
     timestamp,
   });
 
-  switch (event.type) {
-    case "booking_inquiry_submitted": {
-      store.updateCase(bookingCase.id, {
-        state: "intake_pending",
-        current_step: STEP_LABELS.intake_pending,
-        updated_at: timestamp,
-      });
-
-      logAction(bookingCase.id, "System sent intake email", "send_intake_email", "auto", timestamp);
-      store.logEmail({
-        case_id: bookingCase.id,
-        to: bookingCase.client_email,
-        subject: "Tell us more",
-        body: "Thanks for reaching out. A few quick questions will help me understand what you need.",
-        sent_at: timestamp,
-        source_action: "send_intake_email",
-      });
-
-      return { accepted: true, case_id: bookingCase.id, state: "intake_pending" as BookingState };
-    }
-
-    case "fit_review_completed": {
-      if (event.payload.outcome !== "confirmed") {
-        return { accepted: true, case_id: bookingCase.id, state: bookingCase.state };
-      }
-
-      store.updateCase(bookingCase.id, {
-        paused_reason: null,
-        updated_at: timestamp,
-      });
-
-      logAction(
-        bookingCase.id,
-        "Draft approved — fit confirmation email sent",
-        "approve_fit",
-        "draft",
-        timestamp,
-      );
-
-      applyStateChange(bookingCase, "fit_confirmed", "Case moved to: Finding a time", timestamp);
-
-      store.updateCase(bookingCase.id, {
-        state: "awaiting_client_confirmation",
-        current_step: STEP_LABELS.awaiting_client_confirmation,
-        updated_at: timestamp,
-      });
-
-      logAction(
-        bookingCase.id,
-        "System sent available time slots",
-        "propose_time_slots",
-        "auto",
-        timestamp,
-      );
-      store.logEmail({
-        case_id: bookingCase.id,
-        to: bookingCase.client_email,
-        subject: "Available time slots",
-        body: "Here are a few times that could work for your session.",
-        sent_at: timestamp,
-        source_action: "propose_time_slots",
-      });
-      store.addTimelineEntry({
-        case_id: bookingCase.id,
-        type: "state_change",
-        content: "Case moved to: Waiting on client",
-        metadata: { from_state: "fit_confirmed", to_state: "awaiting_client_confirmation" },
-        timestamp,
-      });
-
-      return {
-        accepted: true,
-        case_id: bookingCase.id,
-        state: "awaiting_client_confirmation" as BookingState,
-      };
-    }
-
-    case "slot_selection_received": {
-      if (event.payload.selection_type !== "confirmed") {
-        return { accepted: true, case_id: bookingCase.id, state: bookingCase.state };
-      }
-
-      store.updateCase(bookingCase.id, {
-        paused_reason: null,
-        updated_at: timestamp,
-      });
-
-      const selectedSlot = String(event.payload.selected_slot ?? "Selected time slot");
-      store.addTimelineEntry({
-        case_id: bookingCase.id,
-        type: "event",
-        content: `${bookingCase.client_name} confirmed ${selectedSlot}`,
-        timestamp,
-      });
-      logAction(
-        bookingCase.id,
-        "Draft approved — booking confirmation email sent",
-        "confirm_booking",
-        "draft",
-        timestamp,
-      );
-      applyStateChange(bookingCase, "booked", "Case moved to: Booked", timestamp);
-      logAction(
-        bookingCase.id,
-        "Reminder scheduled for upcoming session",
-        "schedule_reminder",
-        "auto",
-        timestamp,
-      );
-
-      return { accepted: true, case_id: bookingCase.id, state: "booked" as BookingState };
-    }
-
-    case "cancel_request_received": {
-      store.addTimelineEntry({
-        case_id: bookingCase.id,
-        type: "event",
-        content: `${bookingCase.client_name} requested cancellation`,
-        timestamp,
-      });
-      store.updateCase(bookingCase.id, {
-        state: "cancel_requested",
-        current_step: STEP_LABELS.cancel_requested,
-        paused_reason: "Escalated to you — the system has stepped back",
-        updated_at: timestamp,
-      });
-      store.addTimelineEntry({
-        case_id: bookingCase.id,
-        type: "state_change",
-        content: "Case moved to: Cancellation requested",
-        metadata: { from_state: bookingCase.state, to_state: "cancel_requested" },
-        timestamp,
-      });
-      store.addTimelineEntry({
-        case_id: bookingCase.id,
-        type: "system_note",
-        content: "System escalated to you — no draft generated",
-        metadata: { automation_level: "manual" },
-        timestamp,
-      });
-
-      return { accepted: true, case_id: bookingCase.id, state: "cancel_requested" as BookingState };
-    }
-
-    case "reminder_time_reached": {
-      logAction(
-        bookingCase.id,
-        "Reminder scheduled for upcoming session",
-        "schedule_reminder",
-        "auto",
-        timestamp,
-      );
-      return { accepted: true, case_id: bookingCase.id, state: bookingCase.state };
-    }
-
-    default:
-      return { accepted: true, case_id: bookingCase.id, state: bookingCase.state };
+  if (event.type === "slot_selection_received" && event.payload.selection_type === "confirmed") {
+    logEvent(bookingCase.id, `${bookingCase.client_name ?? "Client"} confirmed ${String(event.payload.selected_slot ?? "a time slot")}`, timestamp);
   }
+
+  let iterations = 0;
+  while (iterations < MAX_ITERATIONS) {
+    iterations += 1;
+    bookingCase = refreshCase(bookingCase.id);
+
+    const contextString = buildContext(bookingCase, event);
+    const decision = await runAgent(bookingCase, event, contextString);
+
+    if (needsIntentClassification(bookingCase, event)) {
+      return handleIntentClassification(decision as IntentDecision, bookingCase, timestamp);
+    }
+
+    const action = (decision as AgentDecision).action;
+    const level = policyCheck(action, bookingCase.state);
+
+    if (level === "auto") {
+      executeTool(action, bookingCase, timestamp);
+      const nextState = getNextState(bookingCase.state, action);
+      if (nextState) {
+        updateCaseState(bookingCase.id, nextState, timestamp);
+      }
+
+      if (!(decision as AgentDecision).has_more_actions) {
+        break;
+      }
+      continue;
+    }
+
+    if (level === "draft") {
+      createDraft(bookingCase.id, action, timestamp);
+      break;
+    }
+
+    executeTool("escalate_to_owner", bookingCase, timestamp);
+    break;
+  }
+
+  bookingCase = refreshCase(bookingCase.id);
+  return { accepted: true, case_id: bookingCase.id, state: bookingCase.state };
 }

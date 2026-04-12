@@ -6,6 +6,10 @@ import type { EventType } from "@/lib/types";
 function normalizeEmailEvent(subject: string, body: string, state: string): EventType {
   const combined = `${subject} ${body}`.toLowerCase();
 
+  if (state === "reschedule_in_progress" && (combined.includes("confirm") || combined.includes("thursday") || combined.includes("april"))) {
+    return "reschedule_slot_selection_received";
+  }
+
   if (combined.includes("cancel")) {
     return "cancel_request_received";
   }
@@ -57,7 +61,7 @@ export async function POST(request: NextRequest) {
     type: normalizedEventType,
     case_id: bookingCase.id,
     payload:
-      normalizedEventType === "slot_selection_received"
+      normalizedEventType === "slot_selection_received" || normalizedEventType === "reschedule_slot_selection_received"
         ? {
             selection_type: "confirmed",
             selected_slot: body.subject,
