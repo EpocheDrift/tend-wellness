@@ -85,6 +85,11 @@ class InMemoryStore {
     return caseId ? items.filter((draft) => draft.case_id === caseId) : items;
   }
 
+  getDraft(draftId: string) {
+    this.initialize();
+    return this.drafts.get(draftId) ?? null;
+  }
+
   getTimeline(caseId: string) {
     this.initialize();
     return this.timeline.get(caseId) ?? null;
@@ -98,6 +103,88 @@ class InMemoryStore {
   getEmailLog(caseId?: string) {
     this.initialize();
     return caseId ? this.emailLog.filter((entry) => entry.case_id === caseId) : this.emailLog;
+  }
+
+  updateCase(caseId: string, patch: Partial<BookingCase>) {
+    this.initialize();
+    const bookingCase = this.getCase(caseId);
+
+    if (!bookingCase) {
+      return null;
+    }
+
+    const nextCase = {
+      ...bookingCase,
+      ...patch,
+    };
+
+    this.cases.set(caseId, nextCase);
+    return nextCase;
+  }
+
+  updateDraft(draftId: string, patch: Partial<Draft>) {
+    this.initialize();
+    const draft = this.getDraft(draftId);
+
+    if (!draft) {
+      return null;
+    }
+
+    const nextDraft = {
+      ...draft,
+      ...patch,
+    };
+
+    this.drafts.set(draftId, nextDraft);
+    return nextDraft;
+  }
+
+  addDraft(input: Omit<Draft, "id" | "created_at" | "updated_at">) {
+    this.initialize();
+    const timestamp = new Date().toISOString();
+    const id = `draft_${String(this.drafts.size + 1).padStart(3, "0")}`;
+    const draft: Draft = {
+      ...input,
+      id,
+      created_at: timestamp,
+      updated_at: timestamp,
+    };
+    this.drafts.set(id, draft);
+    return draft;
+  }
+
+  addTimelineEntry(input: Omit<TimelineEntry, "id">) {
+    this.initialize();
+    const entry: TimelineEntry = {
+      ...input,
+      id: `timeline_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    };
+    const items = this.timeline.get(input.case_id) ?? [];
+    items.push(entry);
+    this.timeline.set(input.case_id, items);
+    return entry;
+  }
+
+  addInteraction(input: Omit<Interaction, "id">) {
+    this.initialize();
+    const interaction: Interaction = {
+      ...input,
+      id: `interaction_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    };
+    const items = this.interactions.get(input.case_id) ?? [];
+    items.push(interaction);
+    this.interactions.set(input.case_id, items);
+    return interaction;
+  }
+
+  logEmail(input: Omit<MockEmailLog, "id">) {
+    this.initialize();
+    const email: MockEmailLog = {
+      ...input,
+      id: `email_${String(this.emailLog.length + 1).padStart(3, "0")}`,
+    };
+    this.emailLog.push(email);
+    return email;
   }
 
   createCase(input: CreateCaseInput) {
