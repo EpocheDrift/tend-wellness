@@ -28,7 +28,11 @@ function buildResumeEvent(draftId: string): AppEvent | null {
     return {
       type,
       case_id: draft.case_id,
-      payload: { outcome: "confirmed", completed_at: timestamp },
+      payload: {
+        outcome: "confirmed",
+        completed_at: timestamp,
+        approved_draft_action: draft.action,
+      },
     };
   }
 
@@ -36,14 +40,22 @@ function buildResumeEvent(draftId: string): AppEvent | null {
     return {
       type,
       case_id: draft.case_id,
-      payload: { selection_type: "confirmed", selected_slot: "Thursday, April 17 at 3:00 PM" },
+      payload: {
+        selection_type: "confirmed",
+        selected_slot: "Thursday, April 17 at 3:00 PM",
+        approved_draft_action: draft.action,
+      },
     };
   }
 
   return {
     type,
     case_id: draft.case_id,
-    payload: { resumed_from_draft: draft.id, completed_at: timestamp },
+    payload: {
+      resumed_from_draft: draft.id,
+      completed_at: timestamp,
+      approved_draft_action: draft.action,
+    },
   };
 }
 

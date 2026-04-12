@@ -106,6 +106,17 @@ export type AppEvent = {
   payload: Record<string, unknown>;
 };
 
+export type AgentDecision = {
+  action: ActionType;
+  params?: Record<string, unknown>;
+  reasoning?: string;
+  has_more_actions?: boolean;
+};
+
+export type IntentDecision = {
+  intent: "confirm_cancel" | "reschedule" | "unclear";
+};
+
 export type SeedPayload = {
   cases: BookingCase[];
   drafts: Draft[];

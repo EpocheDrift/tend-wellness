@@ -1,6 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
 import { onEvent } from "@/lib/harness/on-event";
 import { store } from "@/lib/store";
+import type { AppEvent, EventType } from "@/lib/types";
+
+const DRAFT_TO_RESUME_EVENT: Record<string, EventType> = {
+  approve_fit: "fit_review_completed",
+  confirm_booking: "slot_selection_received",
+  request_more_info: "client_message_received",
+  offer_reschedule: "reschedule_offered_and_accepted",
+  send_cancellation_reply: "client_message_received",
+};
+
+function buildResumeEvent(draftId: string): AppEvent | null {
+  const draft = store.getDraft(draftId);
+  if (!draft) {
+    return null;
+  }
+
+  const type = DRAFT_TO_RESUME_EVENT[draft.action];
+  if (!type) {
+    return null;
+  }
+
+  const timestamp = new Date().toISOString();
+
+  if (draft.action === "approve_fit") {
+    return {
+      type,
+      case_id: draft.case_id,
+      payload: {
+        outcome: "confirmed",
+        completed_at: timestamp,
+        approved_draft_action: draft.action,
+      },
+    };
+  }
+
+  if (draft.action === "confirm_booking") {
+    return {
+      type,
+      case_id: draft.case_id,
+      payload: {
+        selection_type: "confirmed",
+        selected_slot: "Thursday, April 17 at 3:00 PM",
+        approved_draft_action: draft.action,
+      },
+    };
+  }
+
+  return {
+    type,
+    case_id: draft.case_id,
+    payload: {
+      resumed_from_draft: draft.id,
+      completed_at: timestamp,
+      approved_draft_action: draft.action,
+    },
+  };
+}
 
 type RouteContext = {
   params: Promise<{
@@ -45,12 +102,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     source_action: draft.action,
   });
 
-  if (draft.action === "approve_fit") {
-    await onEvent({
-      type: "fit_review_completed",
-      case_id: draft.case_id,
-      payload: { outcome: "confirmed", completed_at: timestamp },
-    });
+  const resumeEvent = buildResumeEvent(draftId);
+  if (resumeEvent) {
+    await onEvent(resumeEvent);
   }
 
   store.addInteraction({
