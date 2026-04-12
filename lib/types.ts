@@ -97,6 +97,8 @@ export type EventType =
   | "slot_selection_received"
   | "reschedule_slot_selection_received"
   | "fit_review_completed"
+  | "intake_information_completed"
+  | "session_marked_completed"
   | "reminder_time_reached"
   | "reschedule_offered_and_accepted";
 

@@ -20,6 +20,10 @@ function heuristicDecision(bookingCase: BookingCase, event: AppEvent): AgentDeci
     return { action: "send_intake_email", params: {}, reasoning: "Initial outreach", has_more_actions: false };
   }
 
+  if (bookingCase.state === "fit_review" && event.type === "fit_review_completed" && event.payload?.outcome === "approved") {
+    return { action: "approve_fit", params: {}, reasoning: "Owner approved the fit", has_more_actions: false };
+  }
+
   if (bookingCase.state === "fit_confirmed") {
     return { action: "propose_time_slots", params: {}, reasoning: "Move into scheduling", has_more_actions: false };
   }

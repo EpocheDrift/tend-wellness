@@ -266,6 +266,14 @@ export async function onEvent(event: AppEvent) {
     }
   }
 
+  // Direct event-triggered transitions (no agent action; SSOT row with "—" in action column)
+  if (event.type === "intake_information_completed" && bookingCase.state === "intake_pending") {
+    logEvent(bookingCase.id, `${bookingCase.client_name ?? "Client"} completed intake form`, timestamp);
+    updateCaseState(bookingCase.id, "fit_review", timestamp);
+    bookingCase = refreshCase(bookingCase.id);
+    return { accepted: true, case_id: bookingCase.id, state: bookingCase.state };
+  }
+
   bookingCase = preprocessEvent(event, bookingCase, timestamp);
 
   store.addInteraction({
