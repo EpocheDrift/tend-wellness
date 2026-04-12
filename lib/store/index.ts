@@ -222,6 +222,11 @@ class InMemoryStore {
   }
 }
 
-export const store = new InMemoryStore();
+const globalForStore = globalThis as typeof globalThis & {
+  store?: InMemoryStore;
+};
 
+export const store = globalForStore.store ?? new InMemoryStore();
+
+globalForStore.store = store;
 store.initialize();
