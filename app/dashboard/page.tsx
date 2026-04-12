@@ -134,23 +134,47 @@ function useDashboardData() {
   });
   const [error, setError] = useState<string | null>(null);
 
+  async function loadCases() {
+    const payload = await readJson<{ items: BookingCase[] }>("/api/cases");
+    const sorted = sortCases(payload.items);
+    setCases(sorted);
+    setSelectedCaseId((current) => {
+      if (current && sorted.some((item) => item.id === current)) {
+        return current;
+      }
+      return sorted[0]?.id ?? null;
+    });
+  }
+
+  async function loadCaseBundle(caseId: string) {
+    const [detail, timeline, drafts, availableActions] = await Promise.all([
+      readJson<BookingCase>(`/api/cases/${caseId}`),
+      readJson<{ items: TimelineEntry[] }>(`/api/cases/${caseId}/timeline`),
+      readJson<{ items: Draft[] }>(`/api/cases/${caseId}/drafts`),
+      readJson<{
+        case_id: string;
+        state: BookingCase["state"];
+        actions: AvailableAction[];
+      }>(`/api/cases/${caseId}/available-actions`),
+    ]);
+
+    setCaseBundle({
+      detail,
+      timeline: timeline.items,
+      drafts: drafts.items,
+      availableActions: availableActions.actions,
+    });
+  }
+
   useEffect(() => {
     let cancelled = false;
 
-    async function loadCases() {
+    async function refreshCases() {
       try {
-        const payload = await readJson<{ items: BookingCase[] }>("/api/cases");
-        if (cancelled) return;
-
-        const sorted = sortCases(payload.items);
-        setCases(sorted);
-        setSelectedCaseId((current) => {
-          if (current && sorted.some((item) => item.id === current)) {
-            return current;
-          }
-          return sorted[0]?.id ?? null;
-        });
-        setError(null);
+        await loadCases();
+        if (!cancelled) {
+          setError(null);
+        }
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : "Failed to load cases");
@@ -158,8 +182,8 @@ function useDashboardData() {
       }
     }
 
-    void loadCases();
-    const intervalId = window.setInterval(loadCases, 3000);
+    void refreshCases();
+    const intervalId = window.setInterval(refreshCases, 3000);
 
     return () => {
       cancelled = true;
@@ -174,28 +198,12 @@ function useDashboardData() {
 
     let cancelled = false;
 
-    async function loadCaseBundle() {
+    async function refreshBundle() {
       try {
-        const [detail, timeline, drafts, availableActions] = await Promise.all([
-          readJson<BookingCase>(`/api/cases/${selectedCaseId}`),
-          readJson<{ items: TimelineEntry[] }>(`/api/cases/${selectedCaseId}/timeline`),
-          readJson<{ items: Draft[] }>(`/api/cases/${selectedCaseId}/drafts`),
-          readJson<{
-            case_id: string;
-            state: BookingCase["state"];
-            actions: AvailableAction[];
-          }>(`/api/cases/${selectedCaseId}/available-actions`),
-        ]);
-
-        if (cancelled) return;
-
-        setCaseBundle({
-          detail,
-          timeline: timeline.items,
-          drafts: drafts.items,
-          availableActions: availableActions.actions,
-        });
-        setError(null);
+        await loadCaseBundle(selectedCaseId);
+        if (!cancelled) {
+          setError(null);
+        }
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : "Failed to load case data");
@@ -203,8 +211,8 @@ function useDashboardData() {
       }
     }
 
-    void loadCaseBundle();
-    const intervalId = window.setInterval(loadCaseBundle, 3000);
+    void refreshBundle();
+    const intervalId = window.setInterval(refreshBundle, 3000);
 
     return () => {
       cancelled = true;
@@ -218,12 +226,24 @@ function useDashboardData() {
     setSelectedCaseId,
     caseBundle,
     error,
+    refresh: async () => {
+      try {
+        await loadCases();
+        if (selectedCaseId) {
+          await loadCaseBundle(selectedCaseId);
+        }
+        setError(null);
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : "Failed to refresh dashboard");
+      }
+    },
   };
 }
 
 export default function DashboardPage() {
-  const { cases, selectedCaseId, setSelectedCaseId, caseBundle, error } = useDashboardData();
+  const { cases, selectedCaseId, setSelectedCaseId, caseBundle, error, refresh } = useDashboardData();
   const selectedCase = caseBundle.detail;
+  const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const pendingDraft = useMemo(
     () => caseBundle.drafts.find((draft) => draft.status === "pending") ?? null,
@@ -232,6 +252,75 @@ export default function DashboardPage() {
 
   const showEscalationNotice =
     !pendingDraft && !!selectedCase?.paused_reason?.toLowerCase().includes("escalated");
+
+  async function postJson(url: string, body: Record<string, unknown>) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed: ${url}`);
+    }
+
+    return response.json();
+  }
+
+  async function handleApproveDraft(draft: Draft) {
+    setBusyAction(`approve:${draft.id}`);
+    try {
+      await postJson(`/api/drafts/${draft.id}/approve`, { approved_by: "owner" });
+      await refresh();
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRejectDraft(draft: Draft) {
+    setBusyAction(`reject:${draft.id}`);
+    try {
+      await postJson(`/api/drafts/${draft.id}/reject`, { rejected_by: "owner" });
+      await refresh();
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleEditApproveDraft(draft: Draft) {
+    const editedBody = window.prompt("Edit draft body before approval", draft.body);
+    if (!editedBody) {
+      return;
+    }
+
+    setBusyAction(`edit:${draft.id}`);
+    try {
+      await postJson(`/api/drafts/${draft.id}/edit-and-approve`, {
+        approved_by: "owner",
+        subject: draft.subject,
+        body: editedBody,
+      });
+      await refresh();
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleEscalationAck() {
+    if (!selectedCase) {
+      return;
+    }
+
+    setBusyAction(`ack:${selectedCase.id}`);
+    try {
+      await postJson(`/api/cases/${selectedCase.id}/actions`, {
+        action: "escalate_acknowledged",
+      });
+      await refresh();
+    } finally {
+      setBusyAction(null);
+    }
+  }
 
   return (
     <main
@@ -447,9 +536,18 @@ export default function DashboardPage() {
               </div>
 
               {pendingDraft ? (
-                <DraftCard draft={pendingDraft} />
+                <DraftCard
+                  draft={pendingDraft}
+                  busy={busyAction !== null}
+                  onApprove={() => handleApproveDraft(pendingDraft)}
+                  onReject={() => handleRejectDraft(pendingDraft)}
+                  onEditApprove={() => handleEditApproveDraft(pendingDraft)}
+                />
               ) : showEscalationNotice ? (
-                <EscalationCard />
+                <EscalationCard
+                  busy={busyAction !== null}
+                  onAcknowledge={handleEscalationAck}
+                />
               ) : (
                 <div
                   style={{
@@ -571,6 +669,7 @@ function ActionRow({ action }: { action: AvailableAction }) {
         background,
         color,
         cursor: "default",
+        opacity: 0.98,
       }}
     >
       <span style={{ fontSize: 13, fontWeight: 500 }}>{ACTION_LABELS[action.action]}</span>
@@ -579,7 +678,19 @@ function ActionRow({ action }: { action: AvailableAction }) {
   );
 }
 
-function DraftCard({ draft }: { draft: Draft }) {
+function DraftCard({
+  draft,
+  busy,
+  onApprove,
+  onEditApprove,
+  onReject,
+}: {
+  draft: Draft;
+  busy: boolean;
+  onApprove: () => void;
+  onEditApprove: () => void;
+  onReject: () => void;
+}) {
   return (
     <div
       style={{
@@ -616,6 +727,8 @@ function DraftCard({ draft }: { draft: Draft }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 18 }}>
         <button
           type="button"
+          onClick={onApprove}
+          disabled={busy}
           style={{
             borderRadius: 999,
             border: "none",
@@ -624,13 +737,16 @@ function DraftCard({ draft }: { draft: Draft }) {
             padding: "11px 14px",
             fontSize: 13,
             fontWeight: 600,
-            cursor: "default",
+            cursor: busy ? "wait" : "pointer",
+            opacity: busy ? 0.7 : 1,
           }}
         >
           Approve
         </button>
         <button
           type="button"
+          onClick={onEditApprove}
+          disabled={busy}
           style={{
             borderRadius: 999,
             border: "1px solid rgba(45,61,46,0.24)",
@@ -639,13 +755,16 @@ function DraftCard({ draft }: { draft: Draft }) {
             padding: "11px 14px",
             fontSize: 13,
             fontWeight: 600,
-            cursor: "default",
+            cursor: busy ? "wait" : "pointer",
+            opacity: busy ? 0.7 : 1,
           }}
         >
           Edit &amp; Approve
         </button>
         <button
           type="button"
+          onClick={onReject}
+          disabled={busy}
           style={{
             borderRadius: 999,
             border: "1px solid transparent",
@@ -654,7 +773,8 @@ function DraftCard({ draft }: { draft: Draft }) {
             padding: "11px 14px",
             fontSize: 13,
             fontWeight: 600,
-            cursor: "default",
+            cursor: busy ? "wait" : "pointer",
+            opacity: busy ? 0.7 : 1,
           }}
         >
           Reject
@@ -668,7 +788,13 @@ function DraftCard({ draft }: { draft: Draft }) {
   );
 }
 
-function EscalationCard() {
+function EscalationCard({
+  busy,
+  onAcknowledge,
+}: {
+  busy: boolean;
+  onAcknowledge: () => void;
+}) {
   return (
     <div
       style={{
@@ -693,6 +819,8 @@ function EscalationCard() {
       </div>
       <button
         type="button"
+        onClick={onAcknowledge}
+        disabled={busy}
         style={{
           marginTop: 16,
           borderRadius: 999,
@@ -702,7 +830,8 @@ function EscalationCard() {
           padding: "11px 14px",
           fontSize: 13,
           fontWeight: 600,
-          cursor: "default",
+          cursor: busy ? "wait" : "pointer",
+          opacity: busy ? 0.7 : 1,
         }}
       >
         I&apos;ll handle this

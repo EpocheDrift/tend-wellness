@@ -89,6 +89,23 @@ export type AvailableAction = {
   policy: AutomationLevel;
 };
 
+export type EventType =
+  | "booking_inquiry_submitted"
+  | "client_message_received"
+  | "cancel_request_received"
+  | "reschedule_request_received"
+  | "slot_selection_received"
+  | "reschedule_slot_selection_received"
+  | "fit_review_completed"
+  | "reminder_time_reached"
+  | "reschedule_offered_and_accepted";
+
+export type AppEvent = {
+  type: EventType;
+  case_id: string;
+  payload: Record<string, unknown>;
+};
+
 export type SeedPayload = {
   cases: BookingCase[];
   drafts: Draft[];
