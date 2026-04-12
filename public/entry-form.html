@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tend Entry Form</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #2c2c2c;
+        --muted: #6d655b;
+        --line: rgba(44, 44, 44, 0.16);
+        --olive: #2d3d2e;
+        --soft-olive: rgba(45, 61, 46, 0.12);
+        --success-bg: rgba(45, 61, 46, 0.08);
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        color: var(--ink);
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      body {
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      .wrap {
+        width: 100%;
+        max-width: 560px;
+      }
+
+      .eyebrow {
+        margin: 0 0 0.75rem;
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .title {
+        margin: 0 0 0.75rem;
+        font-size: clamp(1.75rem, 4vw, 2.5rem);
+        font-weight: 400;
+        line-height: 1.25;
+      }
+
+      .intro {
+        margin: 0 0 2rem;
+        font-size: 1rem;
+        line-height: 1.8;
+        color: var(--muted);
+      }
+
+      form {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .field {
+        display: grid;
+        gap: 0.45rem;
+      }
+
+      label {
+        font-size: 0.92rem;
+        letter-spacing: 0.01em;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        border-radius: 0;
+        background: transparent;
+        color: var(--ink);
+        font: inherit;
+        padding: 0.55rem 0;
+        outline: none;
+        transition: border-color 160ms ease, box-shadow 160ms ease;
+        box-sizing: border-box;
+      }
+
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      input::placeholder,
+      textarea::placeholder {
+        color: rgba(44, 44, 44, 0.45);
+      }
+
+      input:focus,
+      textarea:focus {
+        border-bottom-color: var(--olive);
+        box-shadow: 0 1px 0 0 var(--soft-olive);
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 999px;
+        background: var(--olive);
+        color: #fff;
+        font: inherit;
+        padding: 0.95rem 1.6rem;
+        min-width: 132px;
+        cursor: pointer;
+        transition: transform 160ms ease, opacity 160ms ease, background-color 160ms ease;
+      }
+
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: wait;
+      }
+
+      .link-button {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        padding: 0;
+        min-width: 0;
+        text-decoration: underline;
+        text-underline-offset: 0.2em;
+      }
+
+      .link-button:hover:not(:disabled) {
+        transform: none;
+        color: var(--ink);
+      }
+
+      .status {
+        margin-top: 1rem;
+        min-height: 1.5em;
+        font-size: 0.96rem;
+        line-height: 1.6;
+      }
+
+      .status[data-tone="error"] {
+        color: #7a2f2f;
+      }
+
+      .status[data-tone="success"] {
+        color: var(--olive);
+      }
+
+      .confirmed {
+        display: none;
+        margin-top: 1rem;
+        padding: 1rem 0;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(180deg, var(--success-bg), transparent);
+        font-size: 1rem;
+        line-height: 1.7;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap" aria-labelledby="entry-form-title">
+      <p class="eyebrow">Work together</p>
+      <h1 class="title" id="entry-form-title">Let's see if this feels like the right fit.</h1>
+      <p class="intro">
+        Tell me a bit about what you're looking for, and I’ll follow up with next steps.
+      </p>
+
+      <form id="entry-form" novalidate>
+        <div class="field">
+          <label for="name">Name</label>
+          <input id="name" name="name" type="text" autocomplete="name" required />
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" required />
+        </div>
+
+        <div class="field">
+          <label for="message">Tell me a bit about what you're looking for</label>
+          <textarea
+            id="message"
+            name="message"
+            placeholder="A few details about your goals, timing, or what you're hoping to change."
+            required
+          ></textarea>
+        </div>
+
+        <div class="actions">
+          <button id="submit-button" type="submit">Send</button>
+          <button class="link-button" id="other-options" type="button">None of these work</button>
+        </div>
+
+        <div class="status" id="status" aria-live="polite"></div>
+      </form>
+
+      <div class="confirmed" id="confirmed-message" aria-live="polite">
+        Got it — I'll take a look and follow up shortly.
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        const form = document.getElementById("entry-form");
+        const status = document.getElementById("status");
+        const confirmed = document.getElementById("confirmed-message");
+        const submitButton = document.getElementById("submit-button");
+        const otherOptionsButton = document.getElementById("other-options");
+
+        const caseId = new URLSearchParams(window.location.search).get("case_id") || "";
+
+        function setStatus(message, tone) {
+          status.textContent = message;
+          status.dataset.tone = tone || "";
+        }
+
+        function setSubmitting(isSubmitting) {
+          submitButton.disabled = isSubmitting;
+          otherOptionsButton.disabled = isSubmitting;
+          submitButton.textContent = isSubmitting ? "Sending..." : "Send";
+        }
+
+        function hideFormWithSuccess() {
+          form.classList.add("hidden");
+          confirmed.style.display = "block";
+          setStatus("", "");
+        }
+
+        async function postEvent(payload) {
+          const response = await fetch("/api/webhooks/squarespace", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error("Request failed");
+          }
+
+          return response.json();
+        }
+
+        form.addEventListener("submit", async function (event) {
+          event.preventDefault();
+          setStatus("", "");
+          setSubmitting(true);
+
+          try {
+            const name = document.getElementById("name").value.trim();
+            const email = document.getElementById("email").value.trim();
+            const message = document.getElementById("message").value.trim();
+
+            await postEvent({ name, email, message, case_id: caseId || undefined });
+            hideFormWithSuccess();
+          } catch (error) {
+            setStatus("Something went wrong. Please try again.", "error");
+          } finally {
+            setSubmitting(false);
+          }
+        });
+
+        otherOptionsButton.addEventListener("click", async function () {
+          setStatus("", "");
+          setSubmitting(true);
+
+          try {
+            const name = document.getElementById("name").value.trim();
+            const email = document.getElementById("email").value.trim();
+            const message = document.getElementById("message").value.trim();
+
+            await postEvent({
+              name,
+              email,
+              message,
+              case_id: caseId || undefined,
+              selection_type: "needs_other_options",
+            });
+            hideFormWithSuccess();
+          } catch (error) {
+            setStatus("Something went wrong. Please try again.", "error");
+          } finally {
+            setSubmitting(false);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
