@@ -1,5 +1,12 @@
+import { getAvailableActions } from "@/lib/policy";
 import { getSeedData } from "@/lib/seed";
-import type { BookingCase, Draft, Interaction, MockEmailLog, TimelineEntry } from "@/lib/types";
+import type {
+  BookingCase,
+  Draft,
+  Interaction,
+  MockEmailLog,
+  TimelineEntry,
+} from "@/lib/types";
 
 type CreateCaseInput = {
   client_email: string;
@@ -57,6 +64,21 @@ class InMemoryStore {
     return this.cases.get(caseId) ?? null;
   }
 
+  getAvailableActions(caseId: string) {
+    this.initialize();
+    const bookingCase = this.getCase(caseId);
+
+    if (!bookingCase) {
+      return null;
+    }
+
+    return {
+      case_id: bookingCase.id,
+      state: bookingCase.state,
+      actions: getAvailableActions(bookingCase.state),
+    };
+  }
+
   listDrafts(caseId?: string) {
     this.initialize();
     const items = Array.from(this.drafts.values());
@@ -65,7 +87,7 @@ class InMemoryStore {
 
   getTimeline(caseId: string) {
     this.initialize();
-    return this.timeline.get(caseId) ?? [];
+    return this.timeline.get(caseId) ?? null;
   }
 
   getInteractions(caseId: string) {

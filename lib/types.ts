@@ -84,6 +84,11 @@ export type MockEmailLog = {
   source_action: ActionType;
 };
 
+export type AvailableAction = {
+  action: ActionType;
+  policy: AutomationLevel;
+};
+
 export type SeedPayload = {
   cases: BookingCase[];
   drafts: Draft[];
