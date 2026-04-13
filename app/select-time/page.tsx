@@ -5,16 +5,17 @@ export const dynamic = "force-dynamic";
 type PageProps = {
   searchParams?: Promise<{
     case_id?: string | string[];
+    caseId?: string | string[];
   }> | {
     case_id?: string | string[];
+    caseId?: string | string[];
   };
 };
 
 export default async function SelectTimePage({ searchParams }: PageProps) {
   const resolvedSearchParams = await searchParams;
-  const caseId = Array.isArray(resolvedSearchParams?.case_id)
-    ? resolvedSearchParams.case_id[0]
-    : resolvedSearchParams?.case_id ?? "";
+  const raw = resolvedSearchParams?.case_id ?? resolvedSearchParams?.caseId;
+  const caseId = Array.isArray(raw) ? raw[0] : raw ?? "";
 
   return <SelectTimeClient caseId={caseId} />;
 }

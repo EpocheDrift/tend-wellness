@@ -33,7 +33,7 @@ MINIMAX_API_KEY=your_key_here
 | `http://localhost:3000/dashboard` | Owner Dashboard — 案例管理主界面 | 你（practitioner）|
 | `http://localhost:3000/inbox` | Mock Inbox — 查看系统发出的邮件 + 模拟客户回复 | 你（模拟客户侧）|
 | `http://localhost:3000/entry-form.html` | 客户预约入口表单 | 模拟客户提交 |
-| `http://localhost:3000/select-time?caseId=<id>` | 客户选择时间段页面 | 模拟客户选时间 |
+| `http://localhost:3000/select-time?case_id=<id>` | 客户选择时间段页面 | 模拟客户选时间 |
 
 Dashboard 和 Inbox 顶部共享同一个导航栏（`Tend · Dashboard · Inbox`），可直接切换。
 
@@ -165,7 +165,7 @@ Inbox 启动后同样预填充了对应的 seed 邮件（intake、fit confirmati
 
 ### 阶段 4 — 客户选择时间段
 
-1. 打开 `http://localhost:3000/select-time?caseId=<case_id>`（case ID 从 Dashboard URL 获取）
+1. 打开 `http://localhost:3000/select-time?case_id=<case_id>`（case ID 从 Dashboard URL 获取）
 2. 选择一个时间段 → 点击 **Confirm**
 
 **后台：** Harness 生成 `confirm_booking` draft
@@ -214,7 +214,7 @@ case_002（Tom R.）已在 `cancel_requested` 且被 escalate：
 
 1. Dashboard 点击 Jane Kim → 审批 `approve_fit` draft
 2. 案例跳到 `awaiting_client_confirmation`
-3. 打开 `http://localhost:3000/select-time?caseId=case_001` → 选时间
+3. 打开 `http://localhost:3000/select-time?case_id=case_001` → 选时间
 4. 回 Dashboard → 审批 `confirm_booking` draft → `booked`
 
 ---
