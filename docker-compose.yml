@@ -1,0 +1,8 @@
+services:
+  tend-app:
+    image: ghcr.io/epochedrift/tend-wellness:latest
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
