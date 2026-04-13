@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { AvailableAction, BookingCase, Draft, TimelineEntry } from "@/lib/types";
 
@@ -327,118 +328,137 @@ export default function DashboardPage() {
     <main
       style={{
         minHeight: "100vh",
-        display: "flex",
         background: "#faf8f5",
         color: "#2a2a2a",
       }}
     >
-      <aside
+      <nav
         style={{
-          width: 320,
-          minWidth: 320,
-          background: "#f0ece5",
-          borderRight: "1px solid #e8e2d9",
+          height: 72,
           display: "flex",
-          flexDirection: "column",
+          alignItems: "center",
+          gap: 24,
+          padding: "0 28px",
+          borderBottom: "1px solid #e8e2d9",
+          background: "#faf8f5",
         }}
       >
-        <div style={{ padding: "24px 22px 20px", borderBottom: "1px solid #e8e2d9" }}>
-          <div style={{ color: "#2d3d2e", fontSize: 18, fontWeight: 600 }}>Tend</div>
+        <div style={{ color: "#2d3d2e", fontSize: 18, fontWeight: 600 }}>Tend</div>
+        <Link href="/dashboard" style={{ color: "#2d3d2e", fontSize: 14, textDecoration: "none", fontWeight: 700 }}>
+          Dashboard
+        </Link>
+        <Link href="/inbox" style={{ color: "#9e9890", fontSize: 14, textDecoration: "none", fontWeight: 500 }}>
+          Inbox
+        </Link>
+      </nav>
+
+      <div style={{ display: "flex", minHeight: "calc(100vh - 72px)" }}>
+        <aside
+          style={{
+            width: 320,
+            minWidth: 320,
+            background: "#f0ece5",
+            borderRight: "1px solid #e8e2d9",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div style={{ padding: "16px 22px 20px", borderBottom: "1px solid #e8e2d9" }}>
+            <div
+              style={{
+                color: "#9e9890",
+                fontSize: 10,
+                marginTop: 2,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+              }}
+            >
+              Owner Dashboard
+            </div>
+          </div>
+
           <div
             style={{
+              padding: "14px 22px 6px",
               color: "#9e9890",
               fontSize: 10,
-              marginTop: 2,
               letterSpacing: "0.1em",
               textTransform: "uppercase",
             }}
           >
-            Owner Dashboard
+            Cases
           </div>
-        </div>
 
-        <div
-          style={{
-            padding: "14px 22px 6px",
-            color: "#9e9890",
-            fontSize: 10,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-          }}
-        >
-          Cases
-        </div>
+          <div style={{ overflowY: "auto", flex: 1 }}>
+            {cases.map((bookingCase) => {
+              const subLabel = getSubLabel(bookingCase.paused_reason);
+              const indicator = getIndicator(subLabel);
+              const selected = bookingCase.id === selectedCaseId;
 
-        <div style={{ overflowY: "auto", flex: 1 }}>
-          {cases.map((bookingCase) => {
-            const subLabel = getSubLabel(bookingCase.paused_reason);
-            const indicator = getIndicator(subLabel);
-            const selected = bookingCase.id === selectedCaseId;
-
-            return (
-              <button
-                key={bookingCase.id}
-                onClick={() => setSelectedCaseId(bookingCase.id)}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  border: "none",
-                  borderLeft: selected ? "3px solid #2d3d2e" : "3px solid transparent",
-                  background: selected ? "rgba(255,255,255,0.52)" : "transparent",
-                  borderBottom: "1px solid rgba(232,226,217,0.5)",
-                  padding: "13px 22px 13px 19px",
-                  cursor: "pointer",
-                }}
-              >
-                <div
+              return (
+                <button
+                  key={bookingCase.id}
+                  onClick={() => setSelectedCaseId(bookingCase.id)}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 4,
+                    width: "100%",
+                    textAlign: "left",
+                    border: "none",
+                    borderLeft: selected ? "3px solid #2d3d2e" : "3px solid transparent",
+                    background: selected ? "rgba(255,255,255,0.52)" : "transparent",
+                    borderBottom: "1px solid rgba(232,226,217,0.5)",
+                    padding: "13px 22px 13px 19px",
+                    cursor: "pointer",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: "50%",
-                        background: indicator ?? "transparent",
-                        display: "inline-block",
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span style={{ fontSize: 13, fontWeight: selected ? 500 : 400 }}>
-                      {bookingCase.client_name}
-                    </span>
-                  </div>
-                  <span style={{ color: "#9e9890", fontSize: 11 }}>
-                    {formatRelativeTime(bookingCase.updated_at)}
-                  </span>
-                </div>
-
-                <div style={{ paddingLeft: 15 }}>
-                  <div style={{ color: "#3a3a3a", fontSize: 12, marginBottom: 2 }}>
-                    {STATE_LABELS[bookingCase.state]}
-                  </div>
                   <div
                     style={{
-                      color: indicator ? (indicator === "#b85c4a" ? "#8d3e33" : "#7a5c2a") : "#9e9890",
-                      fontSize: 11,
-                      fontWeight: indicator ? 500 : 400,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 4,
                     }}
                   >
-                    {subLabel}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: "50%",
+                          background: indicator ?? "transparent",
+                          display: "inline-block",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span style={{ fontSize: 13, fontWeight: selected ? 500 : 400 }}>
+                        {bookingCase.client_name}
+                      </span>
+                    </div>
+                    <span style={{ color: "#9e9890", fontSize: 11 }}>
+                      {formatRelativeTime(bookingCase.updated_at)}
+                    </span>
                   </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </aside>
 
-      <section style={{ flex: 1, display: "flex", minWidth: 0 }}>
+                  <div style={{ paddingLeft: 15 }}>
+                    <div style={{ color: "#3a3a3a", fontSize: 12, marginBottom: 2 }}>
+                      {STATE_LABELS[bookingCase.state]}
+                    </div>
+                    <div
+                      style={{
+                        color: indicator ? (indicator === "#b85c4a" ? "#8d3e33" : "#7a5c2a") : "#9e9890",
+                        fontSize: 11,
+                        fontWeight: indicator ? 500 : 400,
+                      }}
+                    >
+                      {subLabel}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <section style={{ flex: 1, display: "flex", minWidth: 0 }}>
         <div
           style={{
             flexBasis: "60%",
@@ -568,7 +588,8 @@ export default function DashboardPage() {
             </>
           ) : null}
         </div>
-      </section>
+        </section>
+      </div>
     </main>
   );
 }
