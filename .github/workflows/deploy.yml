@@ -28,4 +28,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/tend-wellness:latest
+          tags: ghcr.io/epochedrift/tend-wellness:latest
