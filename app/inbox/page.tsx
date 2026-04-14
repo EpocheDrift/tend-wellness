@@ -178,6 +178,24 @@ export default function InboxPage() {
         <Link href="/inbox" style={{ color: "#2d3d2e", fontSize: 14, textDecoration: "none", fontWeight: 700 }}>
           Inbox
         </Link>
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={async () => {
+            await fetch("/api/reset", { method: "POST" });
+            window.location.reload();
+          }}
+          style={{
+            border: "1px solid #d7d1c7",
+            borderRadius: 999,
+            background: "transparent",
+            color: "#9e9890",
+            fontSize: 12,
+            padding: "6px 14px",
+            cursor: "pointer",
+          }}
+        >
+          Reset Demo
+        </button>
       </nav>
 
       <div style={{ display: "flex", minHeight: "calc(100vh - 72px)" }}>

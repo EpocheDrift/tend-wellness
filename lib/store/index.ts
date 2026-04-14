@@ -23,6 +23,17 @@ class InMemoryStore {
   private initialized = false;
   private nextCaseNumber = 5;
 
+  reset() {
+    this.cases.clear();
+    this.drafts.clear();
+    this.timeline.clear();
+    this.interactions.clear();
+    this.emailLog = [];
+    this.nextCaseNumber = 5;
+    this.initialized = false;
+    this.initialize();
+  }
+
   initialize() {
     if (this.initialized) {
       return;
