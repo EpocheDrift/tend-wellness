@@ -1,47 +1,70 @@
-import { store } from "@/lib/store";
+import Link from "next/link";
 
 export default function Home() {
-  const cases = store.listCases();
+  const isDevelopment = process.env.NODE_ENV === "development";
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-6 py-12">
       <header className="space-y-3">
         <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">Tend</p>
-        <h1 className="text-4xl font-semibold tracking-tight">Next.js scaffold is live</h1>
+        <h1 className="text-4xl font-semibold tracking-tight">Tend demo is live</h1>
         <p className="max-w-2xl text-base leading-7 text-[var(--muted)]">
-          Issue #1 adds the root Next.js app, an in-memory demo store, and seed data for four
-          booking cases. Start with <code>/api/health</code> and <code>/api/cases</code>.
+          A wellness booking workflow demo with owner-controlled automation, draft approvals,
+          and client scheduling.
         </p>
       </header>
 
-      <section className="grid gap-4 rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-medium">Seed Cases</h2>
-          <span className="rounded-full bg-[var(--accent)] px-3 py-1 text-sm text-white">
-            {cases.length} loaded
-          </span>
-        </div>
-
-        <ul className="grid gap-3">
-          {cases.map((bookingCase) => (
-            <li
-              key={bookingCase.id}
-              className="rounded-2xl border border-[var(--border)] px-4 py-3"
-            >
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="font-medium">{bookingCase.client_name}</p>
-                  <p className="text-sm text-[var(--muted)]">{bookingCase.client_email}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium">{bookingCase.current_step}</p>
-                  <p className="text-sm text-[var(--muted)]">{bookingCase.state}</p>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+      <section className="grid gap-4 sm:grid-cols-2">
+        <DemoLink
+          href="/dashboard"
+          title="Owner Dashboard"
+          description="Review active cases, approve drafts, and see the system timeline."
+        />
+        <DemoLink
+          href="/inbox"
+          title="Mock Inbox"
+          description="View sent emails and simulate client replies during the demo."
+        />
+        <DemoLink
+          href="/entry-form.html"
+          title="Entry Form"
+          description="Submit a new client inquiry and start the booking workflow."
+        />
+        <DemoLink
+          href="/select-time?case_id=case_003"
+          title="Slot Selection"
+          description="Preview the client time selection page with a seeded case."
+        />
       </section>
+
+      {isDevelopment ? (
+        <section className="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6">
+          <h2 className="text-xl font-medium">Development</h2>
+          <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--muted)]">
+            Start with <code>/api/health</code> and <code>/api/cases</code>.
+          </p>
+        </section>
+      ) : null}
     </main>
+  );
+}
+
+function DemoLink({
+  href,
+  title,
+  description,
+}: {
+  href: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6 transition-colors hover:border-[var(--accent)]"
+    >
+      <h2 className="text-xl font-medium">{title}</h2>
+      <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{description}</p>
+    </Link>
   );
 }
