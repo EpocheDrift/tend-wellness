@@ -12,6 +12,7 @@ type InboxEmail = {
   source_action: ActionType;
   is_intake: boolean;
   can_reply: boolean;
+  can_select_time: boolean;
 };
 
 type InboxGroup = {
@@ -41,6 +42,9 @@ export function GET() {
       ...email,
       is_intake: email.source_action === "send_intake_email",
       can_reply: email.source_action === "send_intake_email" && bookingCase.state === "intake_pending",
+      can_select_time:
+        email.source_action === "propose_time_slots" &&
+        bookingCase.state === "awaiting_client_confirmation",
     });
 
     grouped.set(email.case_id, currentGroup);

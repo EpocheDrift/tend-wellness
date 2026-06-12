@@ -14,6 +14,7 @@ type InboxEmail = {
   source_action: ActionType;
   is_intake: boolean;
   can_reply: boolean;
+  can_select_time: boolean;
 };
 
 type InboxGroup = {
@@ -224,16 +225,21 @@ export default function InboxPage() {
             flexDirection: "column",
           }}
         >
-          <div
-            style={{
-              padding: "16px 22px 10px",
-              color: "#9e9890",
-              fontSize: 10,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-            }}
-          >
-            Inbox
+          <div style={{ padding: "16px 22px 10px" }}>
+            <div
+              style={{
+                color: "#9e9890",
+                fontSize: 10,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+              }}
+            >
+              Inbox
+            </div>
+            <div style={{ marginTop: 6, color: "#8a8378", fontSize: 11, lineHeight: 1.5 }}>
+              You&apos;re viewing the client&apos;s mailbox — these are the emails the system sent
+              on the owner&apos;s behalf.
+            </div>
           </div>
 
           <div style={{ flex: 1, overflowY: "auto" }}>
@@ -330,7 +336,7 @@ export default function InboxPage() {
                   color: "#2c2c2c",
                   fontSize: 14,
                   lineHeight: 1.7,
-                  marginBottom: selectedEmail.can_reply ? 24 : 0,
+                  marginBottom: selectedEmail.can_reply || selectedEmail.can_select_time ? 24 : 0,
                 }}
               >
                 {selectedEmail.body}
@@ -362,6 +368,30 @@ export default function InboxPage() {
                 >
                   Simulate Client Reply
                 </button>
+              ) : null}
+
+              {selectedEmail.can_select_time ? (
+                <div>
+                  <a
+                    href={`/select-time?case_id=${selectedEmail.case_id}`}
+                    style={{
+                      display: "inline-block",
+                      borderRadius: 999,
+                      border: "none",
+                      background: "#2d3d2e",
+                      color: "#ffffff",
+                      padding: "10px 16px",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Pick a time →
+                  </a>
+                  <div style={{ marginTop: 10, color: "#9e9890", fontSize: 12, lineHeight: 1.5 }}>
+                    This opens the page the client would see from this email.
+                  </div>
+                </div>
               ) : null}
             </div>
           ) : null}

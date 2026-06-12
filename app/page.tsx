@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 export default function Home() {
   const isDevelopment = process.env.NODE_ENV === "development";
@@ -9,12 +10,60 @@ export default function Home() {
         <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">Tend</p>
         <h1 className="text-4xl font-semibold tracking-tight">Tend demo is live</h1>
         <p className="max-w-2xl text-base leading-7 text-[var(--muted)]">
-          A wellness booking workflow demo with owner-controlled automation, draft approvals,
-          and client scheduling.
+          An AI agent handles a wellness practice&apos;s bookings — but only within policy. Routine
+          steps run automatically, outbound emails wait for the owner&apos;s approval, and sensitive
+          calls are handed back to a human. You can play both sides below.
         </p>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2">
+      <section className="rounded-3xl border border-[var(--accent)]/30 bg-[var(--card)] p-6">
+        <h2 className="text-xl font-medium">Try it in 2 minutes</h2>
+        <ol className="mt-4 max-w-2xl list-none space-y-4 text-base leading-7">
+          <GuideStep
+            number={1}
+            title="Be the owner"
+            description={
+              <>
+                Open the <a className="underline decoration-[var(--accent)]/40 underline-offset-4" href="/dashboard">Dashboard</a>.
+                Jane Kim is waiting with an amber dot — the system drafted an email but won&apos;t
+                send it without you. Click <strong>Approve</strong> and watch the timeline: the
+                system immediately proposes time slots on its own.
+              </>
+            }
+          />
+          <GuideStep
+            number={2}
+            title="Be the client"
+            description={
+              <>
+                Open the <a className="underline decoration-[var(--accent)]/40 underline-offset-4" href="/inbox">Mock Inbox</a>.
+                Jane just received an &ldquo;Available time slots&rdquo; email — click{" "}
+                <strong>Pick a time</strong> inside it and confirm a slot, exactly as the client
+                would.
+              </>
+            }
+          />
+          <GuideStep
+            number={3}
+            title="Close the loop"
+            description={
+              <>
+                Back on the <a className="underline decoration-[var(--accent)]/40 underline-offset-4" href="/dashboard">Dashboard</a>,
+                a confirmation draft is waiting for you. Approve it — the case turns{" "}
+                <strong>Booked ✓</strong> and a session reminder is scheduled automatically.
+              </>
+            }
+          />
+        </ol>
+        <p className="mt-5 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+          Stuck or want a clean slate? Use <strong>Reset Demo</strong> in the top-right corner of
+          the dashboard or inbox.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">Explore freely</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
         <DemoLink
           href="/dashboard"
           title="Owner Dashboard"
@@ -35,6 +84,7 @@ export default function Home() {
           title="Slot Selection"
           description="Preview the client time selection page with a seeded case."
         />
+        </div>
       </section>
 
       {isDevelopment ? (
@@ -46,6 +96,28 @@ export default function Home() {
         </section>
       ) : null}
     </main>
+  );
+}
+
+function GuideStep({
+  number,
+  title,
+  description,
+}: {
+  number: number;
+  title: string;
+  description: ReactNode;
+}) {
+  return (
+    <li className="flex gap-4">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white">
+        {number}
+      </span>
+      <span>
+        <strong className="font-medium">{title}.</strong>{" "}
+        <span className="text-[var(--muted)]">{description}</span>
+      </span>
+    </li>
   );
 }
 

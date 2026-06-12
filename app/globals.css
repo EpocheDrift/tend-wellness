@@ -24,3 +24,12 @@ body {
 a {
   color: inherit;
 }
+
+@keyframes tendEntryFlash {
+  0% {
+    box-shadow: 0 0 0 2px rgba(201, 135, 42, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 2px rgba(201, 135, 42, 0);
+  }
+}
