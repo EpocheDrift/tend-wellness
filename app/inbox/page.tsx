@@ -83,7 +83,11 @@ export default function InboxPage() {
             return current;
           }
 
-          return payload.groups[0]?.emails[0]?.id ?? null;
+          // Default to the email the visitor can act on (reply / pick a time);
+          // otherwise the newest email of the most recent group.
+          const emails = payload.groups.flatMap((group) => group.emails);
+          const actionable = emails.find((email) => email.can_reply || email.can_select_time);
+          return actionable?.id ?? payload.groups[0]?.emails[0]?.id ?? null;
         });
         setError(null);
       } catch (loadError) {
@@ -190,6 +194,9 @@ export default function InboxPage() {
         <div style={{ flex: 1 }} />
         <button
           onClick={async () => {
+            if (!window.confirm("This restarts the demo story from the beginning. Continue?")) {
+              return;
+            }
             try {
               const response = await fetch("/api/reset", { method: "POST" });
               if (!response.ok) {
@@ -270,7 +277,33 @@ export default function InboxPage() {
                         cursor: "pointer",
                       }}
                     >
-                      <div style={{ fontSize: 12, color: "#2c2c2c", marginBottom: 4 }}>{email.subject}</div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
+                          marginBottom: 4,
+                        }}
+                      >
+                        <span style={{ fontSize: 12, color: "#2c2c2c" }}>{email.subject}</span>
+                        {email.can_reply || email.can_select_time ? (
+                          <span
+                            style={{
+                              flexShrink: 0,
+                              borderRadius: 999,
+                              padding: "2px 8px",
+                              fontSize: 9,
+                              fontWeight: 700,
+                              letterSpacing: "0.06em",
+                              background: "#dcebd9",
+                              color: "#29422a",
+                            }}
+                          >
+                            ACTION
+                          </span>
+                        ) : null}
+                      </div>
                       <div style={{ fontSize: 11, color: "#9e9890" }}>{formatTimestamp(email.sent_at)}</div>
                     </button>
                   );

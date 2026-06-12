@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withSessionStore } from "@/lib/store/session";
 import { harnessErrorMessage, harnessErrorStatus } from "@/lib/harness/errors";
 import { onEvent } from "@/lib/harness/on-event";
 import { store } from "@/lib/store";
@@ -26,7 +27,7 @@ function normalizeEmailEvent(subject: string, body: string, state: string): Even
   return "client_message_received";
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as
     | {
         case_id?: string;
@@ -89,3 +90,5 @@ export async function POST(request: NextRequest) {
     case_id: bookingCase.id,
   });
 }
+
+export const POST = withSessionStore(handlePOST);

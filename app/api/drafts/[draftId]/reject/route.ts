@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withSessionStore } from "@/lib/store/session";
 import { store } from "@/lib/store";
 
 type RouteContext = {
@@ -7,7 +8,7 @@ type RouteContext = {
   }>;
 };
 
-export async function POST(request: NextRequest, { params }: RouteContext) {
+async function handlePOST(request: NextRequest, { params }: RouteContext) {
   const { draftId } = await params;
   const draft = store.getDraft(draftId);
 
@@ -39,3 +40,5 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   return NextResponse.json({ draft_id: draftId, status: "rejected", reason: body.reason ?? null });
 }
+
+export const POST = withSessionStore(handlePOST);

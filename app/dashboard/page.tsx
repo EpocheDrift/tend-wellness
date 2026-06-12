@@ -322,6 +322,11 @@ export default function DashboardPage() {
   const showEscalationNotice =
     !pendingDraft && !!selectedCase?.paused_reason?.toLowerCase().includes("escalated");
 
+  // The demo's natural entry point: the first case waiting on an approval.
+  const startHereCaseId =
+    cases.find((bookingCase) => getSubLabel(bookingCase.paused_reason).startsWith("Paused"))?.id ??
+    null;
+
   async function postJson(url: string, body: Record<string, unknown>) {
     const response = await fetch(url, {
       method: "POST",
@@ -446,6 +451,9 @@ export default function DashboardPage() {
         </button>
         <button
           onClick={async () => {
+            if (!window.confirm("This restarts the demo story from the beginning. Continue?")) {
+              return;
+            }
             try {
               const response = await fetch("/api/reset", { method: "POST" });
               if (!response.ok) {
@@ -545,11 +553,31 @@ export default function DashboardPage() {
                           background: indicator ?? "transparent",
                           display: "inline-block",
                           flexShrink: 0,
+                          animation:
+                            indicator === "#c9872a"
+                              ? "tendPulse 1.8s ease-in-out infinite"
+                              : undefined,
                         }}
                       />
                       <span style={{ fontSize: 13, fontWeight: selected ? 500 : 400 }}>
                         {bookingCase.client_name}
                       </span>
+                      {bookingCase.id === startHereCaseId ? (
+                        <span
+                          style={{
+                            borderRadius: 999,
+                            padding: "2px 8px",
+                            fontSize: 9,
+                            fontWeight: 700,
+                            letterSpacing: "0.06em",
+                            background: "#f4dfb7",
+                            color: "#735518",
+                            flexShrink: 0,
+                          }}
+                        >
+                          START HERE
+                        </span>
+                      ) : null}
                     </div>
                     <span style={{ color: "#9e9890", fontSize: 11 }}>
                       {formatRelativeTime(bookingCase.updated_at)}
@@ -733,6 +761,22 @@ export default function DashboardPage() {
                 >
                   No intervention is needed right now. The system is handling this case based on
                   the current state and policy rules.
+                  {selectedCase.state === "awaiting_client_confirmation" ? (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f0ece5", color: "#735518" }}>
+                      <strong>Demo tip:</strong> the client just received an email with time
+                      slots.{" "}
+                      <Link href="/inbox" style={{ color: "#735518", fontWeight: 600 }}>
+                        Open the Inbox to play the client →
+                      </Link>
+                    </div>
+                  ) : selectedCase.state === "intake_pending" ? (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f0ece5", color: "#735518" }}>
+                      <strong>Demo tip:</strong> the client received an intake email.{" "}
+                      <Link href="/inbox" style={{ color: "#735518", fontWeight: 600 }}>
+                        Open the Inbox and simulate their reply →
+                      </Link>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </>

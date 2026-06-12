@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withSessionStore } from "@/lib/store/session";
 import { harnessErrorMessage, harnessErrorStatus } from "@/lib/harness/errors";
 import { onEvent } from "@/lib/harness/on-event";
 import { store } from "@/lib/store";
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as
     | {
         email?: string;
@@ -50,3 +51,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ accepted: true, case_id: bookingCase.id });
 }
+
+export const POST = withSessionStore(handlePOST);

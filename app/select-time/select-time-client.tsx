@@ -152,6 +152,15 @@ export default function SelectTimeClient({ caseId }: { caseId: string }) {
                 >
                   You&apos;re all set. A confirmation will be sent to your email shortly.
                 </p>
+                <p className="mt-6 text-sm text-[#5d6f56]">
+                  Demo: now switch back to the owner — a confirmation draft is waiting.{" "}
+                  <a
+                    href="/dashboard"
+                    className="font-semibold underline decoration-[#5d6f56]/40 underline-offset-4"
+                  >
+                    Back to the dashboard →
+                  </a>
+                </p>
               </div>
             ) : (
               <>
@@ -232,7 +241,13 @@ export default function SelectTimeClient({ caseId }: { caseId: string }) {
 
                 {submissionState === "other_options" ? (
                   <p className="mt-4 text-sm text-[#5d6f56]">
-                    We&apos;ll look for a few more options and follow up shortly.
+                    We&apos;ll look for a few more options and follow up shortly.{" "}
+                    <a
+                      href="/dashboard"
+                      className="font-semibold underline decoration-[#5d6f56]/40 underline-offset-4"
+                    >
+                      Back to the demo dashboard →
+                    </a>
                   </p>
                 ) : null}
 

@@ -24,8 +24,9 @@ export default function Home() {
             title="Be the owner"
             description={
               <>
-                Open the <a className="underline decoration-[var(--accent)]/40 underline-offset-4" href="/dashboard">Dashboard</a>.
-                Jane Kim is waiting with an amber dot — the system drafted an email but won&apos;t
+                Open the <a className="underline decoration-[var(--accent)]/40 underline-offset-4" href="/dashboard">Dashboard</a> and
+                find the case marked <strong>Start here</strong> — Jane Kim, with a pulsing amber
+                dot (just below the red escalated case). The system drafted an email but won&apos;t
                 send it without you. Click <strong>Approve</strong> and watch the timeline: the
                 system immediately proposes time slots on its own.
               </>
@@ -37,9 +38,9 @@ export default function Home() {
             description={
               <>
                 Open the <a className="underline decoration-[var(--accent)]/40 underline-offset-4" href="/inbox">Mock Inbox</a>.
-                Jane just received an &ldquo;Available time slots&rdquo; email — click{" "}
-                <strong>Pick a time</strong> inside it and confirm a slot, exactly as the client
-                would.
+                Jane&apos;s new &ldquo;Available time slots&rdquo; email is already open, marked{" "}
+                <strong>ACTION</strong> — click <strong>Pick a time</strong> inside it and confirm
+                a slot, exactly as the client would.
               </>
             }
           />
@@ -56,8 +57,9 @@ export default function Home() {
           />
         </ol>
         <p className="mt-5 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-          Stuck or want a clean slate? Use <strong>Reset Demo</strong> in the top-right corner of
-          the dashboard or inbox.
+          Your session is private — every visitor plays their own copy of the demo. Stuck or want
+          a clean slate? Use <strong>Reset Demo</strong> in the top-right corner of the dashboard
+          or inbox; it only restarts yours.
         </p>
       </section>
 

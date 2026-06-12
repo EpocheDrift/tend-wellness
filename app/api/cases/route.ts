@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withSessionStore } from "@/lib/store/session";
 import { store } from "@/lib/store";
 
-export function GET() {
+function handleGET() {
   return NextResponse.json({ items: store.listCases() });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
     client_email?: string;
     client_name?: string;
@@ -24,3 +25,6 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json(bookingCase, { status: 201 });
 }
+
+export const GET = withSessionStore(handleGET);
+export const POST = withSessionStore(handlePOST);
