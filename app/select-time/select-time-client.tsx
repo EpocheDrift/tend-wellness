@@ -69,8 +69,10 @@ export default function SelectTimeClient({ caseId }: { caseId: string }) {
       });
 
       if (!response.ok) {
-        if (response.status === 409) {
-          throw new Error("This selection link is no longer active — your booking may already be confirmed.");
+        if (response.status === 409 || response.status === 404) {
+          throw new Error(
+            "This selection link is no longer active — the demo may have moved on or restarted. Check the dashboard for the current state.",
+          );
         }
         throw new Error("Failed to confirm the selected time slot.");
       }
@@ -106,8 +108,10 @@ export default function SelectTimeClient({ caseId }: { caseId: string }) {
       });
 
       if (!response.ok) {
-        if (response.status === 409) {
-          throw new Error("This selection link is no longer active — your booking may already be confirmed.");
+        if (response.status === 409 || response.status === 404) {
+          throw new Error(
+            "This selection link is no longer active — the demo may have moved on or restarted. Check the dashboard for the current state.",
+          );
         }
         throw new Error("Failed to request more options.");
       }

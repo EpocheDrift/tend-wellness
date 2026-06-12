@@ -1,13 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
+  buildSessionCookie,
   SESSION_COOKIE,
-  SESSION_COOKIE_MAX_AGE_SECONDS,
   SESSION_ID_PATTERN,
 } from "@/lib/session-constants";
 
-// Issues the demo session cookie on the very first page load, so all of a
-// page's parallel API calls land in one session instead of racing to create
-// several. The API layer has its own fallback for cookieless clients.
+// Issues the demo session cookie on first contact (typically a page load).
+// Cookie issuance lives only here — route handlers never set session cookies,
+// so a response can't carry two conflicting session ids. Requests that arrive
+// without the cookie run against an ephemeral store (see lib/store/session.ts)
+// and become persistent from their next request onward.
 export function middleware(request: NextRequest) {
   const existing = request.cookies.get(SESSION_COOKIE)?.value;
   if (existing && SESSION_ID_PATTERN.test(existing)) {
@@ -15,12 +17,7 @@ export function middleware(request: NextRequest) {
   }
 
   const response = NextResponse.next();
-  response.cookies.set(SESSION_COOKIE, crypto.randomUUID(), {
-    path: "/",
-    sameSite: "lax",
-    httpOnly: true,
-    maxAge: SESSION_COOKIE_MAX_AGE_SECONDS,
-  });
+  response.headers.append("Set-Cookie", buildSessionCookie(crypto.randomUUID()));
   return response;
 }
 

@@ -1,7 +1,5 @@
-import { InMemoryStore } from "@/lib/store/core";
+import type { InMemoryStore } from "@/lib/store/core";
 import { getActiveStore } from "@/lib/store/session";
-
-export { InMemoryStore } from "@/lib/store/core";
 
 // Session-aware facade: every property access resolves against the store bound
 // to the current request's session (via AsyncLocalStorage), falling back to a

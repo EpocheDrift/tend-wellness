@@ -1,18 +1,16 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { randomUUID } from "node:crypto";
 import type { NextRequest } from "next/server";
-import {
-  SESSION_COOKIE,
-  SESSION_COOKIE_MAX_AGE_SECONDS,
-  SESSION_ID_PATTERN,
-} from "@/lib/session-constants";
+import { SESSION_COOKIE, SESSION_ID_PATTERN } from "@/lib/session-constants";
 import { InMemoryStore } from "@/lib/store/core";
 
 // Each browser session gets its own isolated store so concurrent demo visitors
-// can't see or reset each other's state. Sessions are evicted after an hour of
-// inactivity; a fresh visit after that simply re-seeds.
-const SESSION_TTL_MS = 60 * 60 * 1000;
-const MAX_SESSIONS = 100;
+// can't see or reset each other's state. Only requests that present the session
+// cookie get a registered (persistent) store — first-contact and cookieless
+// requests run against an ephemeral store that is never registered, so bots and
+// webhook callers can't flood the registry and evict real visitors.
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // matches the cookie Max-Age
+const SWEEP_INTERVAL_MS = 60 * 1000;
+const MAX_SESSIONS = 200;
 
 type SessionEntry = {
   store: InMemoryStore;
@@ -38,30 +36,59 @@ globalForSessions.__tendStoreContext = storeContext;
 const defaultStore = globalForSessions.__tendDefaultStore ?? new InMemoryStore();
 globalForSessions.__tendDefaultStore = defaultStore;
 
+let warnedAboutFallback = false;
+
 export function getActiveStore(): InMemoryStore {
-  return storeContext.getStore() ?? defaultStore;
+  const active = storeContext.getStore();
+  if (active) {
+    return active;
+  }
+
+  // A store access outside withSessionStore means a route forgot the wrapper —
+  // it would silently share state across all visitors. Surface it loudly once.
+  if (!warnedAboutFallback) {
+    warnedAboutFallback = true;
+    console.warn(
+      "[tend] store accessed outside a session context — falling back to the shared default store. " +
+        "If this happened in a route handler, wrap it with withSessionStore.",
+    );
+  }
+  return defaultStore;
 }
 
-function evictStale(now: number) {
+let lastSweep = 0;
+
+function sweep(now: number) {
+  if (now - lastSweep < SWEEP_INTERVAL_MS && sessions.size <= MAX_SESSIONS) {
+    return;
+  }
+  lastSweep = now;
+
   for (const [sessionId, entry] of sessions) {
     if (now - entry.lastAccess > SESSION_TTL_MS) {
       sessions.delete(sessionId);
     }
   }
 
-  if (sessions.size > MAX_SESSIONS) {
-    const byOldest = Array.from(sessions.entries()).sort(
-      (left, right) => left[1].lastAccess - right[1].lastAccess,
-    );
-    for (const [sessionId] of byOldest.slice(0, sessions.size - MAX_SESSIONS)) {
-      sessions.delete(sessionId);
+  while (sessions.size > MAX_SESSIONS) {
+    let oldestId: string | null = null;
+    let oldestAccess = Infinity;
+    for (const [sessionId, entry] of sessions) {
+      if (entry.lastAccess < oldestAccess) {
+        oldestAccess = entry.lastAccess;
+        oldestId = sessionId;
+      }
     }
+    if (!oldestId) {
+      break;
+    }
+    sessions.delete(oldestId);
   }
 }
 
 function getOrCreateSessionStore(sessionId: string): InMemoryStore {
   const now = Date.now();
-  evictStale(now);
+  sweep(now);
 
   const existing = sessions.get(sessionId);
   if (existing) {
@@ -75,28 +102,32 @@ function getOrCreateSessionStore(sessionId: string): InMemoryStore {
   return store;
 }
 
+function createEphemeralStore(): InMemoryStore {
+  const store = new InMemoryStore();
+  store.initialize();
+  return store;
+}
+
 // Wraps a route handler so everything inside it (including the harness, which
 // imports the store singleton) resolves to this session's store via ALS.
-// Middleware normally issues the cookie on first page load; cookieless clients
-// (curl, webhooks) get a per-request session via the Set-Cookie fallback here.
+//
+// Store resolution: a valid session cookie gets the session's persistent
+// store; anything else (first contact, bots, webhook callers) gets an
+// ephemeral store that is never registered. Cookie issuance lives entirely in
+// middleware — handlers never set cookies, so a response can't carry two
+// conflicting session ids. Browsers always pick up the cookie on the page
+// load that precedes their first API call, so no real visitor state is lost.
 export function withSessionStore<Ctx>(
   handler: (request: NextRequest, context: Ctx) => Response | Promise<Response>,
 ) {
   return async (request: NextRequest, context: Ctx): Promise<Response> => {
     const cookieValue = request.cookies.get(SESSION_COOKIE)?.value;
-    const hasValidCookie = !!cookieValue && SESSION_ID_PATTERN.test(cookieValue);
-    const sessionId = hasValidCookie && cookieValue ? cookieValue : randomUUID();
 
-    const store = getOrCreateSessionStore(sessionId);
-    const response = await storeContext.run(store, () => handler(request, context));
+    const store =
+      cookieValue && SESSION_ID_PATTERN.test(cookieValue)
+        ? getOrCreateSessionStore(cookieValue)
+        : createEphemeralStore();
 
-    if (!hasValidCookie) {
-      response.headers.append(
-        "Set-Cookie",
-        `${SESSION_COOKIE}=${sessionId}; Path=/; SameSite=Lax; HttpOnly; Max-Age=${SESSION_COOKIE_MAX_AGE_SECONDS}`,
-      );
-    }
-
-    return response;
+    return storeContext.run(store, () => handler(request, context));
   };
 }

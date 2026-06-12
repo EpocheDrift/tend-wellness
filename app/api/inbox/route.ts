@@ -57,7 +57,11 @@ function handleGET() {
     .map((group) => ({
       ...group,
       emails: [...group.emails].sort(
-        (left, right) => new Date(right.sent_at).getTime() - new Date(left.sent_at).getTime(),
+        (left, right) =>
+          new Date(right.sent_at).getTime() - new Date(left.sent_at).getTime() ||
+          // Same-millisecond ties (one approval logs two emails back to back):
+          // monotonic ids put the later-sent email first.
+          right.id.localeCompare(left.id),
       ),
     }))
     .sort((left, right) => {

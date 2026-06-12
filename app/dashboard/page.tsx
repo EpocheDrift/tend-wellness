@@ -308,7 +308,7 @@ export default function DashboardPage() {
         setFreshEntryIds(fresh);
       }
     } else {
-      setFreshEntryIds(new Set());
+      setFreshEntryIds((previous) => (previous.size === 0 ? previous : new Set()));
     }
 
     seenEntriesRef.current = { caseId, ids };
@@ -322,10 +322,15 @@ export default function DashboardPage() {
   const showEscalationNotice =
     !pendingDraft && !!selectedCase?.paused_reason?.toLowerCase().includes("escalated");
 
-  // The demo's natural entry point: the first case waiting on an approval.
+  // The demo's natural entry point: the longest-waiting approval (the seeded
+  // Jane Kim case) — newer user-created paused cases must not steal the badge,
+  // or the homepage guide's "Start here" pointer would contradict the UI.
   const startHereCaseId =
-    cases.find((bookingCase) => getSubLabel(bookingCase.paused_reason).startsWith("Paused"))?.id ??
-    null;
+    cases
+      .filter((bookingCase) => getSubLabel(bookingCase.paused_reason).startsWith("Paused"))
+      .sort(
+        (left, right) => new Date(left.updated_at).getTime() - new Date(right.updated_at).getTime(),
+      )[0]?.id ?? null;
 
   async function postJson(url: string, body: Record<string, unknown>) {
     const response = await fetch(url, {
