@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { harnessErrorMessage, harnessErrorStatus } from "@/lib/harness/errors";
 import { onEvent } from "@/lib/harness/on-event";
 import { store } from "@/lib/store";
 import type { EventType } from "@/lib/types";
@@ -57,23 +58,30 @@ export async function POST(request: NextRequest) {
     timestamp: body.received_at,
   });
 
-  await onEvent({
-    type: normalizedEventType,
-    case_id: bookingCase.id,
-    payload:
-      normalizedEventType === "slot_selection_received" || normalizedEventType === "reschedule_slot_selection_received"
-        ? {
-            selection_type: "confirmed",
-            selected_slot: body.subject,
-            received_at: body.received_at,
-          }
-        : {
-            from: body.from,
-            subject: body.subject,
-            body: body.body,
-            received_at: body.received_at,
-          },
-  });
+  try {
+    await onEvent({
+      type: normalizedEventType,
+      case_id: bookingCase.id,
+      payload:
+        normalizedEventType === "slot_selection_received" || normalizedEventType === "reschedule_slot_selection_received"
+          ? {
+              selection_type: "confirmed",
+              selected_slot: body.subject,
+              received_at: body.received_at,
+            }
+          : {
+              from: body.from,
+              subject: body.subject,
+              body: body.body,
+              received_at: body.received_at,
+            },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: harnessErrorMessage(error) },
+      { status: harnessErrorStatus(error) },
+    );
+  }
 
   return NextResponse.json({
     accepted: true,

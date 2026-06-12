@@ -145,12 +145,20 @@ export default function InboxPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Something went wrong. Try again.");
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Something went wrong. Try again.");
       }
 
-      await refreshInbox();
+      // The event was accepted — close the modal regardless of how the refresh goes,
+      // so a refresh hiccup can't invite a duplicate submission. Polling catches up anyway.
       setModalOpen(false);
       setConfirmation("Reply sent — case advancing to fit review.");
+
+      try {
+        await refreshInbox();
+      } catch {
+        // Next poll tick will refresh the list.
+      }
     } catch (replyError) {
       setSubmitError(replyError instanceof Error ? replyError.message : "Something went wrong. Try again.");
     } finally {
@@ -181,8 +189,15 @@ export default function InboxPage() {
         <div style={{ flex: 1 }} />
         <button
           onClick={async () => {
-            await fetch("/api/reset", { method: "POST" });
-            window.location.reload();
+            try {
+              const response = await fetch("/api/reset", { method: "POST" });
+              if (!response.ok) {
+                throw new Error("Reset failed");
+              }
+              window.location.reload();
+            } catch {
+              window.alert("Reset failed — please try again.");
+            }
           }}
           style={{
             border: "1px solid #d7d1c7",

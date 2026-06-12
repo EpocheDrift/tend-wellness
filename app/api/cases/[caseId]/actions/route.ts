@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { harnessErrorMessage, harnessErrorStatus } from "@/lib/harness/errors";
+import { executeOwnerAction } from "@/lib/harness/on-event";
 import { POLICY } from "@/lib/policy";
 import { store } from "@/lib/store";
 import type { ActionType } from "@/lib/types";
@@ -96,19 +98,19 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     });
   }
 
-  store.addTimelineEntry({
-    case_id: caseId,
-    type: "action",
-    content: `Owner executed ${body.action}`,
-    metadata: { automation_level: policy, action: body.action },
-    timestamp,
-  });
-  store.updateCase(caseId, { updated_at: timestamp });
+  try {
+    const updatedCase = executeOwnerAction(caseId, body.action);
 
-  return NextResponse.json({
-    case_id: caseId,
-    action: body.action,
-    result: "executed",
-    state: store.getCase(caseId)?.state,
-  });
+    return NextResponse.json({
+      case_id: caseId,
+      action: body.action,
+      result: "executed",
+      state: updatedCase.state,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: harnessErrorMessage(error) },
+      { status: harnessErrorStatus(error) },
+    );
+  }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AvailableAction, BookingCase, Draft, TimelineEntry } from "@/lib/types";
 
 type CaseBundle = {
@@ -79,6 +79,20 @@ function getIndicator(subLabel: string) {
   return null;
 }
 
+function formatTimestamp(timestamp: string) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return timestamp;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function formatRelativeTime(timestamp: string) {
   const date = new Date(timestamp);
   const diffMs = Date.now() - date.getTime();
@@ -133,21 +147,15 @@ function useDashboardData() {
     drafts: [],
     availableActions: [],
   });
-  const [error, setError] = useState<string | null>(null);
+  const [casesError, setCasesError] = useState<string | null>(null);
+  const [bundleError, setBundleError] = useState<string | null>(null);
+  const selectedCaseIdRef = useRef<string | null>(null);
 
-  async function loadCases() {
-    const payload = await readJson<{ items: BookingCase[] }>("/api/cases");
-    const sorted = sortCases(payload.items);
-    setCases(sorted);
-    setSelectedCaseId((current) => {
-      if (current && sorted.some((item) => item.id === current)) {
-        return current;
-      }
-      return sorted[0]?.id ?? null;
-    });
-  }
+  useEffect(() => {
+    selectedCaseIdRef.current = selectedCaseId;
+  }, [selectedCaseId]);
 
-  async function loadCaseBundle(caseId: string) {
+  async function fetchCaseBundle(caseId: string): Promise<CaseBundle> {
     const [detail, timeline, drafts, availableActions] = await Promise.all([
       readJson<BookingCase>(`/api/cases/${caseId}`),
       readJson<{ items: TimelineEntry[] }>(`/api/cases/${caseId}/timeline`),
@@ -159,27 +167,45 @@ function useDashboardData() {
       }>(`/api/cases/${caseId}/available-actions`),
     ]);
 
-    setCaseBundle({
+    return {
       detail,
       timeline: timeline.items,
       drafts: drafts.items,
       availableActions: availableActions.actions,
-    });
+    };
   }
 
   useEffect(() => {
     let cancelled = false;
+    let inFlight = false;
 
     async function refreshCases() {
+      if (inFlight) {
+        return;
+      }
+      inFlight = true;
+
       try {
-        await loadCases();
-        if (!cancelled) {
-          setError(null);
+        const payload = await readJson<{ items: BookingCase[] }>("/api/cases");
+        if (cancelled) {
+          return;
         }
+
+        const sorted = sortCases(payload.items);
+        setCases(sorted);
+        setSelectedCaseId((current) => {
+          if (current && sorted.some((item) => item.id === current)) {
+            return current;
+          }
+          return sorted[0]?.id ?? null;
+        });
+        setCasesError(null);
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Failed to load cases");
+          setCasesError(loadError instanceof Error ? loadError.message : "Failed to load cases");
         }
+      } finally {
+        inFlight = false;
       }
     }
 
@@ -199,17 +225,28 @@ function useDashboardData() {
 
     const caseId = selectedCaseId;
     let cancelled = false;
+    let inFlight = false;
 
     async function refreshBundle() {
+      if (inFlight) {
+        return;
+      }
+      inFlight = true;
+
       try {
-        await loadCaseBundle(caseId);
-        if (!cancelled) {
-          setError(null);
+        const bundle = await fetchCaseBundle(caseId);
+        if (cancelled) {
+          return;
         }
+
+        setCaseBundle(bundle);
+        setBundleError(null);
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Failed to load case data");
+          setBundleError(loadError instanceof Error ? loadError.message : "Failed to load case data");
         }
+      } finally {
+        inFlight = false;
       }
     }
 
@@ -227,16 +264,19 @@ function useDashboardData() {
     selectedCaseId,
     setSelectedCaseId,
     caseBundle,
-    error,
+    error: casesError ?? bundleError,
+    // Used after owner actions. Throws on failure so callers can surface the error;
+    // drops the bundle result if the user switched cases while the request was in flight.
     refresh: async () => {
-      try {
-        await loadCases();
-        if (selectedCaseId) {
-          await loadCaseBundle(selectedCaseId);
+      const caseId = selectedCaseIdRef.current;
+      const payload = await readJson<{ items: BookingCase[] }>("/api/cases");
+      setCases(sortCases(payload.items));
+
+      if (caseId) {
+        const bundle = await fetchCaseBundle(caseId);
+        if (selectedCaseIdRef.current === caseId) {
+          setCaseBundle(bundle);
         }
-        setError(null);
-      } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Failed to refresh dashboard");
       }
     },
   };
@@ -246,6 +286,7 @@ export default function DashboardPage() {
   const { cases, selectedCaseId, setSelectedCaseId, caseBundle, error, refresh } = useDashboardData();
   const selectedCase = caseBundle.detail;
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const pendingDraft = useMemo(
     () => caseBundle.drafts.find((draft) => draft.status === "pending") ?? null,
@@ -263,17 +304,25 @@ export default function DashboardPage() {
     });
 
     if (!response.ok) {
-      throw new Error(`Request failed: ${url}`);
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error ?? `Request failed: ${url}`);
     }
 
     return response.json();
   }
 
+  function toActionError(error: unknown) {
+    return error instanceof Error ? error.message : "Something went wrong. Please try again.";
+  }
+
   async function handleApproveDraft(draft: Draft) {
     setBusyAction(`approve:${draft.id}`);
+    setActionError(null);
     try {
       await postJson(`/api/drafts/${draft.id}/approve`, { approved_by: "owner" });
       await refresh();
+    } catch (error) {
+      setActionError(toActionError(error));
     } finally {
       setBusyAction(null);
     }
@@ -281,21 +330,20 @@ export default function DashboardPage() {
 
   async function handleRejectDraft(draft: Draft) {
     setBusyAction(`reject:${draft.id}`);
+    setActionError(null);
     try {
       await postJson(`/api/drafts/${draft.id}/reject`, { rejected_by: "owner" });
       await refresh();
+    } catch (error) {
+      setActionError(toActionError(error));
     } finally {
       setBusyAction(null);
     }
   }
 
-  async function handleEditApproveDraft(draft: Draft) {
-    const editedBody = window.prompt("Edit draft body before approval", draft.body);
-    if (!editedBody) {
-      return;
-    }
-
+  async function handleEditApproveDraft(draft: Draft, editedBody: string) {
     setBusyAction(`edit:${draft.id}`);
+    setActionError(null);
     try {
       await postJson(`/api/drafts/${draft.id}/edit-and-approve`, {
         approved_by: "owner",
@@ -303,6 +351,8 @@ export default function DashboardPage() {
         body: editedBody,
       });
       await refresh();
+    } catch (error) {
+      setActionError(toActionError(error));
     } finally {
       setBusyAction(null);
     }
@@ -314,11 +364,14 @@ export default function DashboardPage() {
     }
 
     setBusyAction(`ack:${selectedCase.id}`);
+    setActionError(null);
     try {
       await postJson(`/api/cases/${selectedCase.id}/actions`, {
         action: "escalate_acknowledged",
       });
       await refresh();
+    } catch (error) {
+      setActionError(toActionError(error));
     } finally {
       setBusyAction(null);
     }
@@ -353,8 +406,15 @@ export default function DashboardPage() {
         <div style={{ flex: 1 }} />
         <button
           onClick={async () => {
-            await fetch("/api/reset", { method: "POST" });
-            window.location.reload();
+            try {
+              const response = await fetch("/api/reset", { method: "POST" });
+              if (!response.ok) {
+                throw new Error("Reset failed");
+              }
+              window.location.reload();
+            } catch {
+              window.alert("Reset failed — please try again.");
+            }
           }}
           style={{
             border: "1px solid #d7d1c7",
@@ -574,13 +634,30 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {actionError ? (
+                <div
+                  style={{
+                    background: "#fdf0ee",
+                    border: "1px solid #f0ccc8",
+                    borderRadius: 10,
+                    padding: "12px 16px",
+                    color: "#7a3028",
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {actionError}
+                </div>
+              ) : null}
+
               {pendingDraft ? (
                 <DraftCard
+                  key={pendingDraft.id}
                   draft={pendingDraft}
                   busy={busyAction !== null}
                   onApprove={() => handleApproveDraft(pendingDraft)}
                   onReject={() => handleRejectDraft(pendingDraft)}
-                  onEditApprove={() => handleEditApproveDraft(pendingDraft)}
+                  onEditApprove={(editedBody) => handleEditApproveDraft(pendingDraft, editedBody)}
                 />
               ) : showEscalationNotice ? (
                 <EscalationCard
@@ -634,7 +711,7 @@ function TimelineCard({ entry }: { entry: TimelineEntry }) {
         padding: "12px 14px",
       }}
     >
-      <div style={{ fontSize: 10, color: "#b0a89a", marginBottom: 5 }}>{entry.timestamp}</div>
+      <div style={{ fontSize: 10, color: "#b0a89a", marginBottom: 5 }}>{formatTimestamp(entry.timestamp)}</div>
       <div
         style={{
           display: "flex",
@@ -694,9 +771,9 @@ function ActionRow({ action }: { action: AvailableAction }) {
   const border =
     variant === "ghost" ? "1px solid transparent" : "1px solid rgba(45,61,46,0.24)";
 
+  // Informational only — owner actions run through drafts and escalations, not these rows.
   return (
-    <button
-      type="button"
+    <div
       style={{
         display: "flex",
         alignItems: "center",
@@ -708,13 +785,12 @@ function ActionRow({ action }: { action: AvailableAction }) {
         border,
         background,
         color,
-        cursor: "default",
         opacity: 0.98,
       }}
     >
       <span style={{ fontSize: 13, fontWeight: 500 }}>{ACTION_LABELS[action.action]}</span>
       <Tag label={action.policy.toUpperCase() as keyof typeof TAG_STYLES} />
-    </button>
+    </div>
   );
 }
 
@@ -728,9 +804,12 @@ function DraftCard({
   draft: Draft;
   busy: boolean;
   onApprove: () => void;
-  onEditApprove: () => void;
+  onEditApprove: (editedBody: string) => void;
   onReject: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [editedBody, setEditedBody] = useState(draft.body);
+
   return (
     <div
       style={{
@@ -752,73 +831,140 @@ function DraftCard({
       <div style={{ marginTop: 4, fontSize: 14, fontWeight: 500 }}>{draft.subject}</div>
 
       <div style={{ marginTop: 14, fontSize: 12, color: "#9e9890" }}>Body</div>
-      <div
-        style={{
-          marginTop: 6,
-          fontSize: 13,
-          lineHeight: 1.7,
-          color: "#3d3a37",
-          whiteSpace: "pre-wrap",
-        }}
-      >
-        {draft.body}
-      </div>
+      {editing ? (
+        <textarea
+          value={editedBody}
+          onChange={(event) => setEditedBody(event.target.value)}
+          rows={6}
+          style={{
+            marginTop: 6,
+            width: "100%",
+            borderRadius: 10,
+            border: "1px solid #d7d1c7",
+            padding: "10px 12px",
+            fontSize: 13,
+            lineHeight: 1.7,
+            color: "#3d3a37",
+            fontFamily: "inherit",
+            resize: "vertical",
+            boxSizing: "border-box",
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: 13,
+            lineHeight: 1.7,
+            color: "#3d3a37",
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {draft.body}
+        </div>
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 18 }}>
-        <button
-          type="button"
-          onClick={onApprove}
-          disabled={busy}
-          style={{
-            borderRadius: 999,
-            border: "none",
-            background: "#2d3d2e",
-            color: "#ffffff",
-            padding: "11px 14px",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: busy ? "wait" : "pointer",
-            opacity: busy ? 0.7 : 1,
-          }}
-        >
-          Approve
-        </button>
-        <button
-          type="button"
-          onClick={onEditApprove}
-          disabled={busy}
-          style={{
-            borderRadius: 999,
-            border: "1px solid rgba(45,61,46,0.24)",
-            background: "#ffffff",
-            color: "#2d3d2e",
-            padding: "11px 14px",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: busy ? "wait" : "pointer",
-            opacity: busy ? 0.7 : 1,
-          }}
-        >
-          Edit &amp; Approve
-        </button>
-        <button
-          type="button"
-          onClick={onReject}
-          disabled={busy}
-          style={{
-            borderRadius: 999,
-            border: "1px solid transparent",
-            background: "transparent",
-            color: "#7b736a",
-            padding: "11px 14px",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: busy ? "wait" : "pointer",
-            opacity: busy ? 0.7 : 1,
-          }}
-        >
-          Reject
-        </button>
+        {editing ? (
+          <>
+            <button
+              type="button"
+              onClick={() => onEditApprove(editedBody)}
+              disabled={busy || editedBody.trim().length === 0}
+              style={{
+                borderRadius: 999,
+                border: "none",
+                background: "#2d3d2e",
+                color: "#ffffff",
+                padding: "11px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: busy ? "wait" : "pointer",
+                opacity: busy || editedBody.trim().length === 0 ? 0.7 : 1,
+              }}
+            >
+              Approve &amp; Send Edited
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(false);
+                setEditedBody(draft.body);
+              }}
+              disabled={busy}
+              style={{
+                borderRadius: 999,
+                border: "1px solid transparent",
+                background: "transparent",
+                color: "#7b736a",
+                padding: "11px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: busy ? "wait" : "pointer",
+                opacity: busy ? 0.7 : 1,
+              }}
+            >
+              Cancel Editing
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onApprove}
+              disabled={busy}
+              style={{
+                borderRadius: 999,
+                border: "none",
+                background: "#2d3d2e",
+                color: "#ffffff",
+                padding: "11px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: busy ? "wait" : "pointer",
+                opacity: busy ? 0.7 : 1,
+              }}
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              disabled={busy}
+              style={{
+                borderRadius: 999,
+                border: "1px solid rgba(45,61,46,0.24)",
+                background: "#ffffff",
+                color: "#2d3d2e",
+                padding: "11px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: busy ? "wait" : "pointer",
+                opacity: busy ? 0.7 : 1,
+              }}
+            >
+              Edit &amp; Approve
+            </button>
+            <button
+              type="button"
+              onClick={onReject}
+              disabled={busy}
+              style={{
+                borderRadius: 999,
+                border: "1px solid transparent",
+                background: "transparent",
+                color: "#7b736a",
+                padding: "11px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: busy ? "wait" : "pointer",
+                opacity: busy ? 0.7 : 1,
+              }}
+            >
+              Reject
+            </button>
+          </>
+        )}
       </div>
 
       <div style={{ marginTop: 14, fontSize: 12, color: "#9e9890", lineHeight: 1.5 }}>
@@ -854,8 +1000,8 @@ function EscalationCard({
         The system has stepped back on this case. No draft was generated.
       </div>
       <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.6, color: "#7b544d" }}>
-        This case needs manual handling. The current escalation notice is driven by the case&apos;s
-        paused reason and will remain until write actions are added in the next implementation step.
+        This case needs manual handling. Acknowledge below to take over — the notice will clear
+        and the system will stay hands-off until you act.
       </div>
       <button
         type="button"

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { harnessErrorMessage, harnessErrorStatus } from "@/lib/harness/errors";
 import { onEvent } from "@/lib/harness/on-event";
 import { store } from "@/lib/store";
 import type { AppEvent, EventType } from "@/lib/types";
@@ -73,6 +74,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: "Draft not found" }, { status: 404 });
   }
 
+  if (draft.status !== "pending") {
+    return NextResponse.json(
+      { error: `Draft is already ${draft.status}` },
+      { status: 409 },
+    );
+  }
+
   const body = (await request.json().catch(() => null)) as
     | {
         approved_by?: string;
@@ -104,7 +112,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   const resumeEvent = buildResumeEvent(draftId);
   if (resumeEvent) {
-    await onEvent(resumeEvent);
+    try {
+      await onEvent(resumeEvent);
+    } catch (error) {
+      return NextResponse.json(
+        { error: harnessErrorMessage(error) },
+        { status: harnessErrorStatus(error) },
+      );
+    }
   }
 
   store.addInteraction({

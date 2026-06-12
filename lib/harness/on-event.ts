@@ -1,5 +1,6 @@
 import { buildContext } from "@/lib/harness/context-builder";
-import { policyCheck } from "@/lib/harness/policy";
+import { InvalidEventForStateError, UnknownCaseError } from "@/lib/harness/errors";
+import { ALLOWED_ACTIONS, policyCheck } from "@/lib/harness/policy";
 import { runAgent } from "@/lib/harness/agent";
 import { getNextState, STEP_LABELS } from "@/lib/harness/transitions";
 import { store } from "@/lib/store";
@@ -21,7 +22,7 @@ function isoNow() {
 function refreshCase(caseId: string) {
   const bookingCase = store.getCase(caseId);
   if (!bookingCase) {
-    throw new Error(`Unknown case: ${caseId}`);
+    throw new UnknownCaseError(caseId);
   }
   return bookingCase;
 }
@@ -149,27 +150,31 @@ function executeTool(action: ActionType, bookingCase: BookingCase, timestamp: st
 
 function validateEventForState(event: AppEvent, bookingCase: BookingCase) {
   if (event.type === "booking_inquiry_submitted" && bookingCase.state !== "new_lead") {
-    throw new Error(`Event ${event.type} is invalid for state ${bookingCase.state}`);
+    throw new InvalidEventForStateError(event.type, bookingCase.state);
+  }
+
+  if (event.type === "intake_information_completed" && bookingCase.state !== "intake_pending") {
+    throw new InvalidEventForStateError(event.type, bookingCase.state);
   }
 
   if (event.type === "fit_review_completed" && bookingCase.state !== "fit_review") {
-    throw new Error(`Event ${event.type} is invalid for state ${bookingCase.state}`);
+    throw new InvalidEventForStateError(event.type, bookingCase.state);
   }
 
   if (event.type === "slot_selection_received" && bookingCase.state !== "awaiting_client_confirmation") {
-    throw new Error(`Event ${event.type} is invalid for state ${bookingCase.state}`);
+    throw new InvalidEventForStateError(event.type, bookingCase.state);
   }
 
   if (event.type === "cancel_request_received" && bookingCase.state !== "booked") {
-    throw new Error(`Event ${event.type} is invalid for state ${bookingCase.state}`);
+    throw new InvalidEventForStateError(event.type, bookingCase.state);
   }
 
   if (event.type === "reschedule_request_received" && bookingCase.state !== "booked") {
-    throw new Error(`Event ${event.type} is invalid for state ${bookingCase.state}`);
+    throw new InvalidEventForStateError(event.type, bookingCase.state);
   }
 
   if (event.type === "reschedule_slot_selection_received" && bookingCase.state !== "reschedule_in_progress") {
-    throw new Error(`Event ${event.type} is invalid for state ${bookingCase.state}`);
+    throw new InvalidEventForStateError(event.type, bookingCase.state);
   }
 }
 
@@ -219,6 +224,11 @@ function resumeApprovedDraft(bookingCase: BookingCase, event: AppEvent, timestam
   const nextState = getNextState(bookingCase.state, approvedAction);
   if (nextState) {
     updateCaseState(bookingCase.id, nextState, timestamp);
+  }
+
+  // Booking confirmed → schedule the session reminder right away (auto policy).
+  if (approvedAction === "confirm_booking" && nextState === "booked") {
+    executeTool("schedule_reminder", refreshCase(bookingCase.id), timestamp);
   }
 
   return refreshCase(bookingCase.id);
@@ -293,6 +303,17 @@ export async function onEvent(event: AppEvent) {
     iterations += 1;
     bookingCase = refreshCase(bookingCase.id);
 
+    // Terminal or fully-passive states: nothing for the agent to do — log and stop.
+    if (ALLOWED_ACTIONS[bookingCase.state].length === 0) {
+      store.addTimelineEntry({
+        case_id: bookingCase.id,
+        type: "system_note",
+        content: `Event noted (${event.type}) — no actions are available in this state`,
+        timestamp,
+      });
+      break;
+    }
+
     const contextString = buildContext(bookingCase, event);
     const decision = await runAgent(bookingCase, event, contextString);
 
@@ -301,7 +322,21 @@ export async function onEvent(event: AppEvent) {
     }
 
     const action = (decision as AgentDecision).action;
-    const level = policyCheck(action, bookingCase.state);
+    let level: ReturnType<typeof policyCheck>;
+    try {
+      level = policyCheck(action, bookingCase.state);
+    } catch {
+      // Agent proposed an action outside the allowed list — never execute it; escalate instead.
+      store.addTimelineEntry({
+        case_id: bookingCase.id,
+        type: "system_note",
+        content: `Agent proposed "${action}", which policy does not allow in this state — escalated to you`,
+        metadata: { automation_level: "manual" },
+        timestamp,
+      });
+      executeTool("escalate_to_owner", bookingCase, timestamp);
+      break;
+    }
 
     if (level === "auto") {
       executeTool(action, bookingCase, timestamp);
@@ -327,4 +362,30 @@ export async function onEvent(event: AppEvent) {
 
   bookingCase = refreshCase(bookingCase.id);
   return { accepted: true, case_id: bookingCase.id, state: bookingCase.state };
+}
+
+// Owner-initiated execution (manual override / auto action forced by the owner).
+// Runs the tool side effects and applies the deterministic transition, same as the loop.
+export function executeOwnerAction(caseId: string, action: ActionType) {
+  const bookingCase = refreshCase(caseId);
+  const timestamp = isoNow();
+
+  store.addTimelineEntry({
+    case_id: caseId,
+    type: "action",
+    content: `Owner executed ${action}`,
+    metadata: { action, automation_level: "manual" },
+    timestamp,
+  });
+
+  executeTool(action, bookingCase, timestamp);
+
+  const nextState = getNextState(bookingCase.state, action);
+  if (nextState && nextState !== bookingCase.state) {
+    updateCaseState(caseId, nextState, timestamp);
+  }
+
+  store.updateCase(caseId, { updated_at: timestamp });
+
+  return refreshCase(caseId);
 }

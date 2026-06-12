@@ -22,6 +22,8 @@ class InMemoryStore {
   private emailLog: MockEmailLog[] = [];
   private initialized = false;
   private nextCaseNumber = 5;
+  private nextDraftNumber = 1;
+  private nextEmailNumber = 1;
 
   reset() {
     this.cases.clear();
@@ -62,6 +64,8 @@ class InMemoryStore {
     });
 
     this.emailLog = seed.emailLog;
+    this.nextDraftNumber = seed.drafts.length + 1;
+    this.nextEmailNumber = seed.emailLog.length + 1;
     this.initialized = true;
   }
 
@@ -103,17 +107,18 @@ class InMemoryStore {
 
   getTimeline(caseId: string) {
     this.initialize();
-    return this.timeline.get(caseId) ?? null;
+    const items = this.timeline.get(caseId);
+    return items ? [...items] : null;
   }
 
   getInteractions(caseId: string) {
     this.initialize();
-    return this.interactions.get(caseId) ?? [];
+    return [...(this.interactions.get(caseId) ?? [])];
   }
 
   getEmailLog(caseId?: string) {
     this.initialize();
-    return caseId ? this.emailLog.filter((entry) => entry.case_id === caseId) : this.emailLog;
+    return caseId ? this.emailLog.filter((entry) => entry.case_id === caseId) : [...this.emailLog];
   }
 
   updateCase(caseId: string, patch: Partial<BookingCase>) {
@@ -153,7 +158,8 @@ class InMemoryStore {
   addDraft(input: Omit<Draft, "id" | "created_at" | "updated_at">) {
     this.initialize();
     const timestamp = new Date().toISOString();
-    const id = `draft_${String(this.drafts.size + 1).padStart(3, "0")}`;
+    const id = `draft_${String(this.nextDraftNumber).padStart(3, "0")}`;
+    this.nextDraftNumber += 1;
     const draft: Draft = {
       ...input,
       id,
@@ -192,8 +198,9 @@ class InMemoryStore {
     this.initialize();
     const email: MockEmailLog = {
       ...input,
-      id: `email_${String(this.emailLog.length + 1).padStart(3, "0")}`,
+      id: `email_${String(this.nextEmailNumber).padStart(3, "0")}`,
     };
+    this.nextEmailNumber += 1;
     this.emailLog.push(email);
     return email;
   }
@@ -223,7 +230,10 @@ class InMemoryStore {
         id: `timeline_${id}`,
         case_id: id,
         type: "event",
-        content: "Case created via debug API",
+        content:
+          bookingCase.source === "squarespace_form"
+            ? "Booking inquiry received via Squarespace form"
+            : "Case created via debug API",
         timestamp,
       },
     ]);

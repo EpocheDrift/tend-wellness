@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { harnessErrorMessage, harnessErrorStatus } from "@/lib/harness/errors";
 import { onEvent } from "@/lib/harness/on-event";
 import type { AppEvent, EventType } from "@/lib/types";
 
@@ -21,12 +22,19 @@ export async function POST(request: NextRequest) {
     payload: body.payload ?? {},
   };
 
-  await onEvent(event);
+  try {
+    await onEvent(event);
+  } catch (error) {
+    return NextResponse.json(
+      { error: harnessErrorMessage(error) },
+      { status: harnessErrorStatus(error) },
+    );
+  }
 
   return NextResponse.json({
     accepted: true,
     event_id: `event_${Date.now()}`,
     case_id: event.case_id,
-    status: "queued",
+    status: "processed",
   });
 }

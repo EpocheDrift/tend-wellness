@@ -58,13 +58,27 @@ function DemoLink({
   title: string;
   description: string;
 }) {
-  return (
-    <Link
-      href={href}
-      className="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6 transition-colors hover:border-[var(--accent)]"
-    >
+  const className =
+    "rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6 transition-colors hover:border-[var(--accent)]";
+  const content = (
+    <>
       <h2 className="text-xl font-medium">{title}</h2>
       <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{description}</p>
+    </>
+  );
+
+  // Static files in public/ are not app routes — client-side navigation would 404.
+  if (href.endsWith(".html")) {
+    return (
+      <a href={href} className={className}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={href} className={className}>
+      {content}
     </Link>
   );
 }

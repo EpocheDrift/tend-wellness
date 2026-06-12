@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { harnessErrorMessage, harnessErrorStatus } from "@/lib/harness/errors";
 import { onEvent } from "@/lib/harness/on-event";
 import { store } from "@/lib/store";
 
@@ -16,18 +17,13 @@ export async function POST(request: NextRequest) {
   }
 
   const timestamp = new Date().toISOString();
+  // createCase writes the "Booking inquiry received..." timeline entry based on source.
   const bookingCase = store.createCase({
     client_email: body.email,
     client_name: body.name,
     source: "squarespace_form",
   });
 
-  store.addTimelineEntry({
-    case_id: bookingCase.id,
-    type: "event",
-    content: "Booking inquiry received via Squarespace form",
-    timestamp,
-  });
   store.addInteraction({
     case_id: bookingCase.id,
     channel: "web_form",
@@ -36,14 +32,21 @@ export async function POST(request: NextRequest) {
     timestamp,
   });
 
-  await onEvent({
-    type: "booking_inquiry_submitted",
-    case_id: bookingCase.id,
-    payload: {
-      message: body.message,
-      submitted_at: timestamp,
-    },
-  });
+  try {
+    await onEvent({
+      type: "booking_inquiry_submitted",
+      case_id: bookingCase.id,
+      payload: {
+        message: body.message,
+        submitted_at: timestamp,
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: harnessErrorMessage(error) },
+      { status: harnessErrorStatus(error) },
+    );
+  }
 
   return NextResponse.json({ accepted: true, case_id: bookingCase.id });
 }

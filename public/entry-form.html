@@ -186,7 +186,7 @@
         Tell me a bit about what you're looking for, and I’ll follow up with next steps.
       </p>
 
-      <form id="entry-form" novalidate>
+      <form id="entry-form">
         <div class="field">
           <label for="name">Name</label>
           <input id="name" name="name" type="text" autocomplete="name" required />
@@ -209,7 +209,6 @@
 
         <div class="actions">
           <button id="submit-button" type="submit">Send</button>
-          <button class="link-button" id="other-options" type="button">None of these work</button>
         </div>
 
         <div class="status" id="status" aria-live="polite"></div>
@@ -226,9 +225,6 @@
         const status = document.getElementById("status");
         const confirmed = document.getElementById("confirmed-message");
         const submitButton = document.getElementById("submit-button");
-        const otherOptionsButton = document.getElementById("other-options");
-
-        const caseId = new URLSearchParams(window.location.search).get("case_id") || "";
 
         function setStatus(message, tone) {
           status.textContent = message;
@@ -237,7 +233,6 @@
 
         function setSubmitting(isSubmitting) {
           submitButton.disabled = isSubmitting;
-          otherOptionsButton.disabled = isSubmitting;
           submitButton.textContent = isSubmitting ? "Sending..." : "Send";
         }
 
@@ -273,31 +268,12 @@
             const email = document.getElementById("email").value.trim();
             const message = document.getElementById("message").value.trim();
 
-            await postEvent({ name, email, message, case_id: caseId || undefined });
-            hideFormWithSuccess();
-          } catch (error) {
-            setStatus("Something went wrong. Please try again.", "error");
-          } finally {
-            setSubmitting(false);
-          }
-        });
+            if (!name || !email || !message) {
+              setStatus("Please fill in all three fields.", "error");
+              return;
+            }
 
-        otherOptionsButton.addEventListener("click", async function () {
-          setStatus("", "");
-          setSubmitting(true);
-
-          try {
-            const name = document.getElementById("name").value.trim();
-            const email = document.getElementById("email").value.trim();
-            const message = document.getElementById("message").value.trim();
-
-            await postEvent({
-              name,
-              email,
-              message,
-              case_id: caseId || undefined,
-              selection_type: "needs_other_options",
-            });
+            await postEvent({ name, email, message });
             hideFormWithSuccess();
           } catch (error) {
             setStatus("Something went wrong. Please try again.", "error");

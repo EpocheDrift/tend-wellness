@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { harnessErrorMessage, harnessErrorStatus } from "@/lib/harness/errors";
 import { onEvent } from "@/lib/harness/on-event";
 
 export async function POST(request: NextRequest) {
@@ -14,11 +15,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "type=reminder_time_reached and case_id are required" }, { status: 400 });
   }
 
-  await onEvent({
-    type: body.type,
-    case_id: body.case_id,
-    payload: body.payload ?? {},
-  });
+  try {
+    await onEvent({
+      type: body.type,
+      case_id: body.case_id,
+      payload: body.payload ?? {},
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: harnessErrorMessage(error) },
+      { status: harnessErrorStatus(error) },
+    );
+  }
 
   return NextResponse.json({ accepted: true });
 }

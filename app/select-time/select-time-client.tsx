@@ -69,13 +69,16 @@ export default function SelectTimeClient({ caseId }: { caseId: string }) {
       });
 
       if (!response.ok) {
+        if (response.status === 409) {
+          throw new Error("This selection link is no longer active — your booking may already be confirmed.");
+        }
         throw new Error("Failed to confirm the selected time slot.");
       }
 
       setSubmissionState("confirmed");
-    } catch {
+    } catch (submitError) {
       setSubmissionState("error");
-      setError("Something went wrong. Please try again.");
+      setError(submitError instanceof Error ? submitError.message : "Something went wrong. Please try again.");
     }
   };
 
@@ -103,13 +106,16 @@ export default function SelectTimeClient({ caseId }: { caseId: string }) {
       });
 
       if (!response.ok) {
+        if (response.status === 409) {
+          throw new Error("This selection link is no longer active — your booking may already be confirmed.");
+        }
         throw new Error("Failed to request more options.");
       }
 
       setSubmissionState("other_options");
-    } catch {
+    } catch (submitError) {
       setSubmissionState("error");
-      setError("Something went wrong. Please try again.");
+      setError(submitError instanceof Error ? submitError.message : "Something went wrong. Please try again.");
     }
   };
 
@@ -217,7 +223,7 @@ export default function SelectTimeClient({ caseId }: { caseId: string }) {
                   <button
                     type="button"
                     onClick={requestOtherOptions}
-                    disabled={submissionState === "submitting"}
+                    disabled={!caseId || submissionState === "submitting"}
                     className="text-sm font-medium text-[#6f685f] underline decoration-[#c7beaf] underline-offset-4 transition-colors hover:text-[#2d3d2e] disabled:cursor-not-allowed disabled:text-[#a79d90]"
                   >
                     None of these work

@@ -54,13 +54,14 @@ const cases: BookingCase[] = [
   },
 ];
 
+// Timestamps are ISO strings — the dashboard formats them for display.
 const timeline: TimelineEntry[] = [
   {
     id: "timeline_001",
     case_id: "case_001",
     type: "event",
     content: "Booking inquiry received via Squarespace form",
-    timestamp: "Apr 5, 9:30 AM",
+    timestamp: "2026-04-05T09:30:00-07:00",
   },
   {
     id: "timeline_002",
@@ -68,14 +69,14 @@ const timeline: TimelineEntry[] = [
     type: "action",
     content: "System sent intake email",
     metadata: { automation_level: "auto", action: "send_intake_email" },
-    timestamp: "Apr 5, 9:31 AM",
+    timestamp: "2026-04-05T09:31:00-07:00",
   },
   {
     id: "timeline_003",
     case_id: "case_001",
     type: "event",
     content: "Jane replied with intake information",
-    timestamp: "Apr 5, 2:14 PM",
+    timestamp: "2026-04-05T14:14:00-07:00",
   },
   {
     id: "timeline_004",
@@ -83,7 +84,7 @@ const timeline: TimelineEntry[] = [
     type: "state_change",
     content: "Case moved to: Ready for your review",
     metadata: { from_state: "intake_pending", to_state: "fit_review" },
-    timestamp: "Apr 5, 2:15 PM",
+    timestamp: "2026-04-05T14:15:00-07:00",
   },
   {
     id: "timeline_005",
@@ -91,14 +92,14 @@ const timeline: TimelineEntry[] = [
     type: "draft",
     content: "Draft ready — waiting for your approval",
     metadata: { automation_level: "draft", action: "approve_fit" },
-    timestamp: "Apr 5, 2:16 PM",
+    timestamp: "2026-04-05T14:16:00-07:00",
   },
   {
     id: "timeline_006",
     case_id: "case_002",
     type: "event",
     content: "Booking confirmed",
-    timestamp: "Apr 9, 8:00 AM",
+    timestamp: "2026-04-09T08:00:00-07:00",
   },
   {
     id: "timeline_007",
@@ -109,14 +110,14 @@ const timeline: TimelineEntry[] = [
       from_state: "awaiting_client_confirmation",
       to_state: "booked",
     },
-    timestamp: "Apr 9, 8:01 AM",
+    timestamp: "2026-04-09T08:01:00-07:00",
   },
   {
     id: "timeline_008",
     case_id: "case_002",
     type: "event",
     content: "Tom requested cancellation",
-    timestamp: "Apr 9, 11:42 AM",
+    timestamp: "2026-04-09T11:42:00-07:00",
   },
   {
     id: "timeline_009",
@@ -124,7 +125,7 @@ const timeline: TimelineEntry[] = [
     type: "state_change",
     content: "Case moved to: Cancellation requested",
     metadata: { from_state: "booked", to_state: "cancel_requested" },
-    timestamp: "Apr 9, 11:43 AM",
+    timestamp: "2026-04-09T11:43:00-07:00",
   },
   {
     id: "timeline_010",
@@ -132,14 +133,14 @@ const timeline: TimelineEntry[] = [
     type: "system_note",
     content: "System escalated to you — no draft generated",
     metadata: { automation_level: "manual" },
-    timestamp: "Apr 9, 11:43 AM",
+    timestamp: "2026-04-09T11:43:00-07:00",
   },
   {
     id: "timeline_011",
     case_id: "case_003",
     type: "event",
     content: "Booking inquiry received via Squarespace form",
-    timestamp: "Apr 7, 10:00 AM",
+    timestamp: "2026-04-07T10:00:00-07:00",
   },
   {
     id: "timeline_012",
@@ -147,14 +148,14 @@ const timeline: TimelineEntry[] = [
     type: "action",
     content: "System sent intake email",
     metadata: { automation_level: "auto", action: "send_intake_email" },
-    timestamp: "Apr 7, 10:01 AM",
+    timestamp: "2026-04-07T10:01:00-07:00",
   },
   {
     id: "timeline_013",
     case_id: "case_003",
     type: "event",
     content: "Marcus replied with intake information",
-    timestamp: "Apr 7, 3:30 PM",
+    timestamp: "2026-04-07T15:30:00-07:00",
   },
   {
     id: "timeline_014",
@@ -162,7 +163,7 @@ const timeline: TimelineEntry[] = [
     type: "state_change",
     content: "Case moved to: Ready for your review",
     metadata: { from_state: "intake_pending", to_state: "fit_review" },
-    timestamp: "Apr 7, 3:31 PM",
+    timestamp: "2026-04-07T15:31:00-07:00",
   },
   {
     id: "timeline_015",
@@ -170,7 +171,7 @@ const timeline: TimelineEntry[] = [
     type: "action",
     content: "Draft approved — fit confirmation email sent",
     metadata: { automation_level: "draft", action: "approve_fit" },
-    timestamp: "Apr 8, 9:00 AM",
+    timestamp: "2026-04-08T09:00:00-07:00",
   },
   {
     id: "timeline_016",
@@ -178,7 +179,7 @@ const timeline: TimelineEntry[] = [
     type: "state_change",
     content: "Case moved to: Finding a time",
     metadata: { from_state: "fit_review", to_state: "fit_confirmed" },
-    timestamp: "Apr 8, 9:01 AM",
+    timestamp: "2026-04-08T09:01:00-07:00",
   },
   {
     id: "timeline_017",
@@ -186,7 +187,7 @@ const timeline: TimelineEntry[] = [
     type: "action",
     content: "System sent available time slots",
     metadata: { automation_level: "auto", action: "propose_time_slots" },
-    timestamp: "Apr 8, 9:02 AM",
+    timestamp: "2026-04-08T09:02:00-07:00",
   },
   {
     id: "timeline_018",
@@ -197,14 +198,14 @@ const timeline: TimelineEntry[] = [
       from_state: "fit_confirmed",
       to_state: "awaiting_client_confirmation",
     },
-    timestamp: "Apr 8, 9:02 AM",
+    timestamp: "2026-04-08T09:02:00-07:00",
   },
   {
     id: "timeline_019",
     case_id: "case_004",
     type: "event",
     content: "Booking inquiry received via Squarespace form",
-    timestamp: "Apr 3, 11:00 AM",
+    timestamp: "2026-04-03T11:00:00-07:00",
   },
   {
     id: "timeline_020",
@@ -212,7 +213,7 @@ const timeline: TimelineEntry[] = [
     type: "action",
     content: "System sent intake email",
     metadata: { automation_level: "auto", action: "send_intake_email" },
-    timestamp: "Apr 3, 11:01 AM",
+    timestamp: "2026-04-03T11:01:00-07:00",
   },
   {
     id: "timeline_021",
@@ -220,7 +221,7 @@ const timeline: TimelineEntry[] = [
     type: "state_change",
     content: "Case moved to: Ready for your review",
     metadata: { from_state: "intake_pending", to_state: "fit_review" },
-    timestamp: "Apr 4, 2:00 PM",
+    timestamp: "2026-04-04T14:00:00-07:00",
   },
   {
     id: "timeline_022",
@@ -228,7 +229,7 @@ const timeline: TimelineEntry[] = [
     type: "action",
     content: "Draft approved — fit confirmation email sent",
     metadata: { automation_level: "draft", action: "approve_fit" },
-    timestamp: "Apr 4, 4:00 PM",
+    timestamp: "2026-04-04T16:00:00-07:00",
   },
   {
     id: "timeline_023",
@@ -236,14 +237,14 @@ const timeline: TimelineEntry[] = [
     type: "action",
     content: "System sent available time slots",
     metadata: { automation_level: "auto", action: "propose_time_slots" },
-    timestamp: "Apr 4, 4:01 PM",
+    timestamp: "2026-04-04T16:01:00-07:00",
   },
   {
     id: "timeline_024",
     case_id: "case_004",
     type: "event",
     content: "Sarah confirmed Thursday, April 10 at 3:00 PM",
-    timestamp: "Apr 4, 6:30 PM",
+    timestamp: "2026-04-04T18:30:00-07:00",
   },
   {
     id: "timeline_025",
@@ -251,7 +252,7 @@ const timeline: TimelineEntry[] = [
     type: "action",
     content: "Draft approved — booking confirmation email sent",
     metadata: { automation_level: "draft", action: "confirm_booking" },
-    timestamp: "Apr 5, 9:00 AM",
+    timestamp: "2026-04-05T09:00:00-07:00",
   },
   {
     id: "timeline_026",
@@ -262,7 +263,7 @@ const timeline: TimelineEntry[] = [
       from_state: "awaiting_client_confirmation",
       to_state: "booked",
     },
-    timestamp: "Apr 5, 9:00 AM",
+    timestamp: "2026-04-05T09:00:00-07:00",
   },
   {
     id: "timeline_027",
@@ -270,7 +271,7 @@ const timeline: TimelineEntry[] = [
     type: "action",
     content: "Reminder scheduled for Apr 9 at 3:00 PM",
     metadata: { automation_level: "auto", action: "schedule_reminder" },
-    timestamp: "Apr 5, 9:01 AM",
+    timestamp: "2026-04-05T09:01:00-07:00",
   },
 ];
 
@@ -345,7 +346,7 @@ const emailLog: MockEmailLog[] = [
     id: "email_002",
     case_id: "case_003",
     to: "marcus.l@example.com",
-    subject: "Tell us about yourself",
+    subject: "Tell us more",
     body: "Thanks for reaching out. A few quick questions will help me understand what you need.",
     sent_at: "2026-04-07T10:01:00-07:00",
     source_action: "send_intake_email",
@@ -372,7 +373,7 @@ const emailLog: MockEmailLog[] = [
     id: "email_005",
     case_id: "case_004",
     to: "sarah.m@example.com",
-    subject: "Tell us about yourself",
+    subject: "Tell us more",
     body: "Thanks for reaching out. A few quick questions will help me understand what you need.",
     sent_at: "2026-04-03T11:01:00-07:00",
     source_action: "send_intake_email",
@@ -388,6 +389,15 @@ const emailLog: MockEmailLog[] = [
   },
   {
     id: "email_007",
+    case_id: "case_004",
+    to: "sarah.m@example.com",
+    subject: "Available time slots",
+    body: "Here are a few times that could work for your session.",
+    sent_at: "2026-04-04T16:01:00-07:00",
+    source_action: "propose_time_slots",
+  },
+  {
+    id: "email_008",
     case_id: "case_004",
     to: "sarah.m@example.com",
     subject: "Booking confirmed",

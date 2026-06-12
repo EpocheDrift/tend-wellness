@@ -15,6 +15,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: "Draft not found" }, { status: 404 });
   }
 
+  if (draft.status !== "pending") {
+    return NextResponse.json(
+      { error: `Draft is already ${draft.status}` },
+      { status: 409 },
+    );
+  }
+
   const body = (await request.json().catch(() => ({}))) as { rejected_by?: string; reason?: string };
   const timestamp = new Date().toISOString();
 
