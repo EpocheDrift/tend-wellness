@@ -176,6 +176,18 @@
       .hidden {
         display: none !important;
       }
+
+      .confirmed-followup {
+        margin-top: 0.75rem;
+        font-size: 0.88rem;
+        color: var(--muted);
+      }
+
+      .confirmed-followup a {
+        color: var(--olive);
+        text-decoration: underline;
+        text-underline-offset: 0.2em;
+      }
     </style>
   </head>
   <body>
@@ -216,6 +228,10 @@
 
       <div class="confirmed" id="confirmed-message" aria-live="polite">
         Got it — I'll take a look and follow up shortly.
+        <div class="confirmed-followup">
+          Demo tip: you just played the client. <a href="/dashboard">Open the owner dashboard →</a>
+          to see the case the system created and the intake email it already sent.
+        </div>
       </div>
     </main>
 

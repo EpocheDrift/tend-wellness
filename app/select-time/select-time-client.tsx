@@ -69,8 +69,10 @@ export default function SelectTimeClient({ caseId }: { caseId: string }) {
       });
 
       if (!response.ok) {
-        if (response.status === 409) {
-          throw new Error("This selection link is no longer active — your booking may already be confirmed.");
+        if (response.status === 409 || response.status === 404) {
+          throw new Error(
+            "This selection link is no longer active — the demo may have moved on or restarted. Check the dashboard for the current state.",
+          );
         }
         throw new Error("Failed to confirm the selected time slot.");
       }
@@ -106,8 +108,10 @@ export default function SelectTimeClient({ caseId }: { caseId: string }) {
       });
 
       if (!response.ok) {
-        if (response.status === 409) {
-          throw new Error("This selection link is no longer active — your booking may already be confirmed.");
+        if (response.status === 409 || response.status === 404) {
+          throw new Error(
+            "This selection link is no longer active — the demo may have moved on or restarted. Check the dashboard for the current state.",
+          );
         }
         throw new Error("Failed to request more options.");
       }
@@ -151,6 +155,15 @@ export default function SelectTimeClient({ caseId }: { caseId: string }) {
                   style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
                 >
                   You&apos;re all set. A confirmation will be sent to your email shortly.
+                </p>
+                <p className="mt-6 text-sm text-[#5d6f56]">
+                  Demo: now switch back to the owner — a confirmation draft is waiting.{" "}
+                  <a
+                    href="/dashboard"
+                    className="font-semibold underline decoration-[#5d6f56]/40 underline-offset-4"
+                  >
+                    Back to the dashboard →
+                  </a>
                 </p>
               </div>
             ) : (
@@ -232,7 +245,13 @@ export default function SelectTimeClient({ caseId }: { caseId: string }) {
 
                 {submissionState === "other_options" ? (
                   <p className="mt-4 text-sm text-[#5d6f56]">
-                    We&apos;ll look for a few more options and follow up shortly.
+                    We&apos;ll look for a few more options and follow up shortly.{" "}
+                    <a
+                      href="/dashboard"
+                      className="font-semibold underline decoration-[#5d6f56]/40 underline-offset-4"
+                    >
+                      Back to the demo dashboard →
+                    </a>
                   </p>
                 ) : null}
 

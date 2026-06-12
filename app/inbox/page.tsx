@@ -14,6 +14,7 @@ type InboxEmail = {
   source_action: ActionType;
   is_intake: boolean;
   can_reply: boolean;
+  can_select_time: boolean;
 };
 
 type InboxGroup = {
@@ -82,7 +83,11 @@ export default function InboxPage() {
             return current;
           }
 
-          return payload.groups[0]?.emails[0]?.id ?? null;
+          // Default to the email the visitor can act on (reply / pick a time);
+          // otherwise the newest email of the most recent group.
+          const emails = payload.groups.flatMap((group) => group.emails);
+          const actionable = emails.find((email) => email.can_reply || email.can_select_time);
+          return actionable?.id ?? payload.groups[0]?.emails[0]?.id ?? null;
         });
         setError(null);
       } catch (loadError) {
@@ -189,6 +194,9 @@ export default function InboxPage() {
         <div style={{ flex: 1 }} />
         <button
           onClick={async () => {
+            if (!window.confirm("This restarts the demo story from the beginning. Continue?")) {
+              return;
+            }
             try {
               const response = await fetch("/api/reset", { method: "POST" });
               if (!response.ok) {
@@ -224,16 +232,21 @@ export default function InboxPage() {
             flexDirection: "column",
           }}
         >
-          <div
-            style={{
-              padding: "16px 22px 10px",
-              color: "#9e9890",
-              fontSize: 10,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-            }}
-          >
-            Inbox
+          <div style={{ padding: "16px 22px 10px" }}>
+            <div
+              style={{
+                color: "#9e9890",
+                fontSize: 10,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+              }}
+            >
+              Inbox
+            </div>
+            <div style={{ marginTop: 6, color: "#8a8378", fontSize: 11, lineHeight: 1.5 }}>
+              You&apos;re viewing the client&apos;s mailbox — these are the emails the system sent
+              on the owner&apos;s behalf.
+            </div>
           </div>
 
           <div style={{ flex: 1, overflowY: "auto" }}>
@@ -264,7 +277,33 @@ export default function InboxPage() {
                         cursor: "pointer",
                       }}
                     >
-                      <div style={{ fontSize: 12, color: "#2c2c2c", marginBottom: 4 }}>{email.subject}</div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
+                          marginBottom: 4,
+                        }}
+                      >
+                        <span style={{ fontSize: 12, color: "#2c2c2c" }}>{email.subject}</span>
+                        {email.can_reply || email.can_select_time ? (
+                          <span
+                            style={{
+                              flexShrink: 0,
+                              borderRadius: 999,
+                              padding: "2px 8px",
+                              fontSize: 9,
+                              fontWeight: 700,
+                              letterSpacing: "0.06em",
+                              background: "#dcebd9",
+                              color: "#29422a",
+                            }}
+                          >
+                            ACTION
+                          </span>
+                        ) : null}
+                      </div>
                       <div style={{ fontSize: 11, color: "#9e9890" }}>{formatTimestamp(email.sent_at)}</div>
                     </button>
                   );
@@ -330,7 +369,7 @@ export default function InboxPage() {
                   color: "#2c2c2c",
                   fontSize: 14,
                   lineHeight: 1.7,
-                  marginBottom: selectedEmail.can_reply ? 24 : 0,
+                  marginBottom: selectedEmail.can_reply || selectedEmail.can_select_time ? 24 : 0,
                 }}
               >
                 {selectedEmail.body}
@@ -362,6 +401,30 @@ export default function InboxPage() {
                 >
                   Simulate Client Reply
                 </button>
+              ) : null}
+
+              {selectedEmail.can_select_time ? (
+                <div>
+                  <a
+                    href={`/select-time?case_id=${selectedEmail.case_id}`}
+                    style={{
+                      display: "inline-block",
+                      borderRadius: 999,
+                      border: "none",
+                      background: "#2d3d2e",
+                      color: "#ffffff",
+                      padding: "10px 16px",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Pick a time →
+                  </a>
+                  <div style={{ marginTop: 10, color: "#9e9890", fontSize: 12, lineHeight: 1.5 }}>
+                    This opens the page the client would see from this email.
+                  </div>
+                </div>
               ) : null}
             </div>
           ) : null}

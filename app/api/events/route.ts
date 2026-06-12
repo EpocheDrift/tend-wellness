@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withSessionStore } from "@/lib/store/session";
 import { harnessErrorMessage, harnessErrorStatus } from "@/lib/harness/errors";
 import { onEvent } from "@/lib/harness/on-event";
 import type { AppEvent, EventType } from "@/lib/types";
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as
     | {
         type?: EventType;
@@ -38,3 +39,5 @@ export async function POST(request: NextRequest) {
     status: "processed",
   });
 }
+
+export const POST = withSessionStore(handlePOST);

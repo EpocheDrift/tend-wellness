@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withSessionStore } from "@/lib/store/session";
 import { harnessErrorMessage, harnessErrorStatus } from "@/lib/harness/errors";
 import { onEvent } from "@/lib/harness/on-event";
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as
     | {
         type?: "reminder_time_reached";
@@ -30,3 +31,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ accepted: true });
 }
+
+export const POST = withSessionStore(handlePOST);

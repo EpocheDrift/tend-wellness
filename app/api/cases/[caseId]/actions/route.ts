@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withSessionStore } from "@/lib/store/session";
 import { harnessErrorMessage, harnessErrorStatus } from "@/lib/harness/errors";
 import { executeOwnerAction } from "@/lib/harness/on-event";
 import { POLICY } from "@/lib/policy";
@@ -11,7 +12,7 @@ type RouteContext = {
   }>;
 };
 
-export async function POST(request: NextRequest, { params }: RouteContext) {
+async function handlePOST(request: NextRequest, { params }: RouteContext) {
   const { caseId } = await params;
   const bookingCase = store.getCase(caseId);
 
@@ -114,3 +115,5 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     );
   }
 }
+
+export const POST = withSessionStore(handlePOST);

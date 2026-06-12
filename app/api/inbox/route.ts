@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withSessionStore } from "@/lib/store/session";
 import { store } from "@/lib/store";
 import type { ActionType } from "@/lib/types";
 
@@ -12,6 +13,7 @@ type InboxEmail = {
   source_action: ActionType;
   is_intake: boolean;
   can_reply: boolean;
+  can_select_time: boolean;
 };
 
 type InboxGroup = {
@@ -21,7 +23,7 @@ type InboxGroup = {
   emails: InboxEmail[];
 };
 
-export function GET() {
+function handleGET() {
   const grouped = new Map<string, InboxGroup>();
 
   store.getEmailLog().forEach((email) => {
@@ -41,23 +43,34 @@ export function GET() {
       ...email,
       is_intake: email.source_action === "send_intake_email",
       can_reply: email.source_action === "send_intake_email" && bookingCase.state === "intake_pending",
+      can_select_time:
+        email.source_action === "propose_time_slots" &&
+        bookingCase.state === "awaiting_client_confirmation",
     });
 
     grouped.set(email.case_id, currentGroup);
   });
 
+  // Newest first within each group (mailbox convention), groups ordered by
+  // their most recent email so fresh activity surfaces at the top.
   const groups = Array.from(grouped.values())
     .map((group) => ({
       ...group,
       emails: [...group.emails].sort(
-        (left, right) => new Date(left.sent_at).getTime() - new Date(right.sent_at).getTime(),
+        (left, right) =>
+          new Date(right.sent_at).getTime() - new Date(left.sent_at).getTime() ||
+          // Same-millisecond ties (one approval logs two emails back to back):
+          // monotonic ids put the later-sent email first.
+          right.id.localeCompare(left.id),
       ),
     }))
     .sort((left, right) => {
-      const leftLatest = left.emails[left.emails.length - 1]?.sent_at ?? "";
-      const rightLatest = right.emails[right.emails.length - 1]?.sent_at ?? "";
+      const leftLatest = left.emails[0]?.sent_at ?? "";
+      const rightLatest = right.emails[0]?.sent_at ?? "";
       return new Date(rightLatest).getTime() - new Date(leftLatest).getTime();
     });
 
   return NextResponse.json({ groups });
 }
+
+export const GET = withSessionStore(handleGET);

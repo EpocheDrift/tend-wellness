@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withSessionStore } from "@/lib/store/session";
 import { harnessErrorMessage, harnessErrorStatus } from "@/lib/harness/errors";
 import { onEvent } from "@/lib/harness/on-event";
 import { store } from "@/lib/store";
@@ -66,7 +67,7 @@ type RouteContext = {
   }>;
 };
 
-export async function POST(request: NextRequest, { params }: RouteContext) {
+async function handlePOST(request: NextRequest, { params }: RouteContext) {
   const { draftId } = await params;
   const draft = store.getDraft(draftId);
 
@@ -132,3 +133,5 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   return NextResponse.json({ draft_id: draftId, status: "sent", case_id: draft.case_id });
 }
+
+export const POST = withSessionStore(handlePOST);

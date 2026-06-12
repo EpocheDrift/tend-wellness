@@ -287,6 +287,32 @@ export default function DashboardPage() {
   const selectedCase = caseBundle.detail;
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+
+  // Flash timeline entries that appeared since the last poll of the same case,
+  // so one approval visibly cascades into several automatic steps.
+  const seenEntriesRef = useRef<{ caseId: string | null; ids: Set<string> }>({
+    caseId: null,
+    ids: new Set(),
+  });
+  const [freshEntryIds, setFreshEntryIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const caseId = caseBundle.detail?.id ?? null;
+    const ids = new Set(caseBundle.timeline.map((entry) => entry.id));
+    const previous = seenEntriesRef.current;
+
+    if (caseId && previous.caseId === caseId) {
+      const fresh = new Set(Array.from(ids).filter((id) => !previous.ids.has(id)));
+      if (fresh.size > 0) {
+        setFreshEntryIds(fresh);
+      }
+    } else {
+      setFreshEntryIds((previous) => (previous.size === 0 ? previous : new Set()));
+    }
+
+    seenEntriesRef.current = { caseId, ids };
+  }, [caseBundle]);
 
   const pendingDraft = useMemo(
     () => caseBundle.drafts.find((draft) => draft.status === "pending") ?? null,
@@ -295,6 +321,16 @@ export default function DashboardPage() {
 
   const showEscalationNotice =
     !pendingDraft && !!selectedCase?.paused_reason?.toLowerCase().includes("escalated");
+
+  // The demo's natural entry point: the longest-waiting approval (the seeded
+  // Jane Kim case) — newer user-created paused cases must not steal the badge,
+  // or the homepage guide's "Start here" pointer would contradict the UI.
+  const startHereCaseId =
+    cases
+      .filter((bookingCase) => getSubLabel(bookingCase.paused_reason).startsWith("Paused"))
+      .sort(
+        (left, right) => new Date(left.updated_at).getTime() - new Date(right.updated_at).getTime(),
+      )[0]?.id ?? null;
 
   async function postJson(url: string, body: Record<string, unknown>) {
     const response = await fetch(url, {
@@ -405,7 +441,24 @@ export default function DashboardPage() {
         </Link>
         <div style={{ flex: 1 }} />
         <button
+          onClick={() => setShowHowItWorks(true)}
+          style={{
+            border: "1px solid #d7d1c7",
+            borderRadius: 999,
+            background: "transparent",
+            color: "#6f6a63",
+            fontSize: 12,
+            padding: "6px 14px",
+            cursor: "pointer",
+          }}
+        >
+          How it works
+        </button>
+        <button
           onClick={async () => {
+            if (!window.confirm("This restarts the demo story from the beginning. Continue?")) {
+              return;
+            }
             try {
               const response = await fetch("/api/reset", { method: "POST" });
               if (!response.ok) {
@@ -505,11 +558,31 @@ export default function DashboardPage() {
                           background: indicator ?? "transparent",
                           display: "inline-block",
                           flexShrink: 0,
+                          animation:
+                            indicator === "#c9872a"
+                              ? "tendPulse 1.8s ease-in-out infinite"
+                              : undefined,
                         }}
                       />
                       <span style={{ fontSize: 13, fontWeight: selected ? 500 : 400 }}>
                         {bookingCase.client_name}
                       </span>
+                      {bookingCase.id === startHereCaseId ? (
+                        <span
+                          style={{
+                            borderRadius: 999,
+                            padding: "2px 8px",
+                            fontSize: 9,
+                            fontWeight: 700,
+                            letterSpacing: "0.06em",
+                            background: "#f4dfb7",
+                            color: "#735518",
+                            flexShrink: 0,
+                          }}
+                        >
+                          START HERE
+                        </span>
+                      ) : null}
                     </div>
                     <span style={{ color: "#9e9890", fontSize: 11 }}>
                       {formatRelativeTime(bookingCase.updated_at)}
@@ -552,7 +625,7 @@ export default function DashboardPage() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {caseBundle.timeline.map((entry) => (
-                <TimelineCard key={entry.id} entry={entry} />
+                <TimelineCard key={entry.id} entry={entry} highlight={freshEntryIds.has(entry.id)} />
               ))}
             </div>
           )}
@@ -632,6 +705,21 @@ export default function DashboardPage() {
                     <ActionRow key={action.action} action={action} />
                   ))}
                 </div>
+
+                <div
+                  style={{
+                    marginTop: 14,
+                    paddingTop: 12,
+                    borderTop: "1px solid #f0ece5",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 7,
+                  }}
+                >
+                  <LegendRow tag="AUTO" text="The system executes on its own" />
+                  <LegendRow tag="DRAFT" text="Prepared for you — nothing sends until you approve" />
+                  <LegendRow tag="MANUAL" text="The system steps back and hands it to you" />
+                </div>
               </div>
 
               {actionError ? (
@@ -678,6 +766,22 @@ export default function DashboardPage() {
                 >
                   No intervention is needed right now. The system is handling this case based on
                   the current state and policy rules.
+                  {selectedCase.state === "awaiting_client_confirmation" ? (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f0ece5", color: "#735518" }}>
+                      <strong>Demo tip:</strong> the client just received an email with time
+                      slots.{" "}
+                      <Link href="/inbox" style={{ color: "#735518", fontWeight: 600 }}>
+                        Open the Inbox to play the client →
+                      </Link>
+                    </div>
+                  ) : selectedCase.state === "intake_pending" ? (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f0ece5", color: "#735518" }}>
+                      <strong>Demo tip:</strong> the client received an intake email.{" "}
+                      <Link href="/inbox" style={{ color: "#735518", fontWeight: 600 }}>
+                        Open the Inbox and simulate their reply →
+                      </Link>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </>
@@ -685,11 +789,99 @@ export default function DashboardPage() {
         </div>
         </section>
       </div>
+
+      {showHowItWorks ? (
+        <div
+          onClick={() => setShowHowItWorks(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(25,25,25,0.42)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            zIndex: 50,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 600,
+              maxHeight: "84vh",
+              overflowY: "auto",
+              background: "#ffffff",
+              borderRadius: 18,
+              padding: "28px 30px",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+            }}
+          >
+            <div style={{ fontSize: 22, fontWeight: 500, marginBottom: 14 }}>
+              What am I looking at?
+            </div>
+
+            <div style={{ fontSize: 14, lineHeight: 1.7, color: "#3d3a37", marginBottom: 14 }}>
+              Tend is a booking workflow run by an AI agent under a strict harness. The agent
+              decides <em>what</em> to do next, but it can only pick from actions the current
+              state allows — and every state change is deterministic code, never the model
+              improvising.
+            </div>
+
+            <div style={{ fontSize: 14, lineHeight: 1.7, color: "#3d3a37", marginBottom: 14 }}>
+              Every action carries a policy level:
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 16 }}>
+              <LegendRow tag="AUTO" text="Routine steps (intake email, proposing times) run instantly and are logged here." />
+              <LegendRow tag="DRAFT" text="Anything outbound that shapes the relationship waits for your approval — you can edit it first." />
+              <LegendRow tag="MANUAL" text="Sensitive calls (like cancellations) make the system step back and hand you the case." />
+            </div>
+
+            <div style={{ fontSize: 14, lineHeight: 1.7, color: "#3d3a37", marginBottom: 14 }}>
+              A case flows through: inquiry → intake → fit review → scheduling → booked →
+              completed. The colored dots in the case list mean a case is waiting on you —
+              amber for an approval, red for an escalation.
+            </div>
+
+            <div style={{ fontSize: 13, lineHeight: 1.6, color: "#9e9890", marginBottom: 18 }}>
+              Try it: approve Jane Kim&apos;s draft and watch the timeline — one approval lets the
+              system take the next steps on its own.
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowHowItWorks(false)}
+              style={{
+                borderRadius: 999,
+                border: "none",
+                background: "#2d3d2e",
+                color: "#ffffff",
+                padding: "10px 18px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
 
-function TimelineCard({ entry }: { entry: TimelineEntry }) {
+function LegendRow({ tag, text }: { tag: keyof typeof TAG_STYLES; text: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+      <Tag label={tag} />
+      <span style={{ fontSize: 12, lineHeight: 1.55, color: "#6f6a63" }}>{text}</span>
+    </div>
+  );
+}
+
+function TimelineCard({ entry, highlight }: { entry: TimelineEntry; highlight?: boolean }) {
   const tag =
     entry.type === "draft"
       ? "DRAFT"
@@ -709,6 +901,7 @@ function TimelineCard({ entry }: { entry: TimelineEntry }) {
         border: isSystemNote ? "1px solid #f0ccc8" : "1px solid #e8e2d9",
         borderRadius: 10,
         padding: "12px 14px",
+        animation: highlight ? "tendEntryFlash 2.4s ease-out" : undefined,
       }}
     >
       <div style={{ fontSize: 10, color: "#b0a89a", marginBottom: 5 }}>{formatTimestamp(entry.timestamp)}</div>
@@ -1000,8 +1193,9 @@ function EscalationCard({
         The system has stepped back on this case. No draft was generated.
       </div>
       <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.6, color: "#7b544d" }}>
-        This case needs manual handling. Acknowledge below to take over — the notice will clear
-        and the system will stay hands-off until you act.
+        Cancellations involve relationship judgment, so policy marks them manual — instead of
+        guessing, the system hands you the case. Acknowledge below to take over; the notice will
+        clear and the system stays hands-off until you act.
       </div>
       <button
         type="button"
